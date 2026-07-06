@@ -67,8 +67,25 @@
     <hr>
 
     <h2>Single audio + video merge</h2>
-    <p>Video: <input type="file" id="oneVideo" accept="video/*"></p>
-    <p>Audio: <input type="file" id="oneAudio" accept="audio/*"></p>
+    
+    <p>
+      <input type="radio" name="singleMode" id="singleModeUpload" value="upload" checked onchange="toggleSingleMode()">
+      <label for="singleModeUpload">Upload Files</label>
+      &nbsp;&nbsp;
+      <input type="radio" name="singleMode" id="singleModeUrl" value="url" onchange="toggleSingleMode()">
+      <label for="singleModeUrl">Use URLs</label>
+    </p>
+
+    <div id="singleUploadSection">
+      <p>Video: <input type="file" id="oneVideo" accept="video/*"></p>
+      <p>Audio: <input type="file" id="oneAudio" accept="audio/*"></p>
+    </div>
+
+    <div id="singleUrlSection" style="display: none;">
+      <p>Video URL: <input type="text" id="oneVideoUrl" placeholder="https://example.com/video.mp4" style="width: 100%;"></p>
+      <p>Audio URL: <input type="text" id="oneAudioUrl" placeholder="https://example.com/audio.mp3" style="width: 100%;"></p>
+    </div>
+
     <p>Language:
       <select id="oneLanguage">
         <option value="en-US">English</option>
@@ -87,9 +104,36 @@
     <hr>
 
     <h2>Multiple audio tracks, one video</h2>
-    <p>Video: <input type="file" id="multiVideo" accept="video/*"></p>
-    <p>Audio files: <input type="file" id="multiAudios" accept="audio/*" multiple onchange="addAudioFiles(this.files)"></p>
-    <div id="languageInputs"></div>
+    
+    <p>
+      <input type="radio" name="multiMode" id="multiModeUpload" value="upload" checked onchange="toggleMultiMode()">
+      <label for="multiModeUpload">Upload Files</label>
+      &nbsp;&nbsp;
+      <input type="radio" name="multiMode" id="multiModeUrl" value="url" onchange="toggleMultiMode()">
+      <label for="multiModeUrl">Use URLs</label>
+    </p>
+
+    <div id="multiUploadSection">
+      <p>Video: <input type="file" id="multiVideo" accept="video/*"></p>
+      <p>Audio files: <input type="file" id="multiAudios" accept="audio/*" multiple onchange="addAudioFiles(this.files)"></p>
+      <div id="languageInputs"></div>
+    </div>
+
+    <div id="multiUrlSection" style="display: none;">
+      <p>Video URL: <input type="text" id="multiVideoUrl" placeholder="https://example.com/video.mp4" style="width: 100%;"></p>
+      <p>Audio Tracks (JSON):</p>
+      <textarea id="multiAudioTracksJson" rows="8" style="width: 100%; font-family: monospace; font-size: 12px;" placeholder='[
+  {
+    "language": "es-ES",
+    "audioUrl": "https://example.com/spanish.mp3"
+  },
+  {
+    "language": "fr-FR",
+    "audioUrl": "https://example.com/french.mp3"
+  }
+]'></textarea>
+    </div>
+
     <button type="button" onclick="callMergeMulti()">POST /test/merge-multi</button>
 
   </div>
@@ -106,6 +150,20 @@
 const SERVER = 'http://localhost:8080';
 const output = document.getElementById('output');
 const videoLink = document.getElementById('videoLink');
+
+// Toggle functions for single merge
+function toggleSingleMode() {
+  const mode = document.querySelector('input[name="singleMode"]:checked').value;
+  document.getElementById('singleUploadSection').style.display = mode === 'upload' ? 'block' : 'none';
+  document.getElementById('singleUrlSection').style.display = mode === 'url' ? 'block' : 'none';
+}
+
+// Toggle functions for multi merge
+function toggleMultiMode() {
+  const mode = document.querySelector('input[name="multiMode"]:checked').value;
+  document.getElementById('multiUploadSection').style.display = mode === 'upload' ? 'block' : 'none';
+  document.getElementById('multiUrlSection').style.display = mode === 'url' ? 'block' : 'none';
+}
 
 // Debug: Log if page is trying to reload
 window.addEventListener('beforeunload', function(e) {
@@ -127,42 +185,84 @@ document.addEventListener('DOMContentLoaded', function() {
       e.stopImmediatePropagation();
       console.log('Button clicked via addEventListener');
       
-      output.textContent = 'Calling /test/merge-one-upload...';
+      output.textContent = 'Processing...';
       videoLink.style.display = 'none';
       
-      const videoFile = document.getElementById('oneVideo').files[0];
-      const audioFile = document.getElementById('oneAudio').files[0];
+      const mode = document.querySelector('input[name="singleMode"]:checked').value;
       const language = document.getElementById('oneLanguage').value;
 
-      console.log('Files:', videoFile, audioFile);
+      console.log('Mode:', mode);
 
-      if (!videoFile || !audioFile) {
-        output.textContent = 'Please select both a video and an audio file.';
-        return;
-      }
+      if (mode === 'upload') {
+        // Upload mode
+        const videoFile = document.getElementById('oneVideo').files[0];
+        const audioFile = document.getElementById('oneAudio').files[0];
 
-      const formData = new FormData();
-      formData.append('video', videoFile);
-      formData.append('audio', audioFile);
-      formData.append('language', language);
-      formData.append('outputName', `merged_${language}_${Date.now()}.mp4`);
-
-      try {
-        output.textContent = 'Uploading and processing...';
-        console.log('Sending fetch request...');
-        const res = await fetch(SERVER + '/test/merge-one-upload', { method: 'POST', body: formData });
-        console.log('Got response:', res.status);
-        const result = await res.json();
-        console.log('Result:', result);
-        
-        show(result);
-        
-        if (result.status === 'success' && result.outputUrl) {
-          showVideoLink(result.outputUrl, result.outputFile);
+        if (!videoFile || !audioFile) {
+          output.textContent = 'Please select both a video and an audio file.';
+          return;
         }
-      } catch (err) { 
-        console.error('Error:', err);
-        showError(err);
+
+        const formData = new FormData();
+        formData.append('video', videoFile);
+        formData.append('audio', audioFile);
+        formData.append('language', language);
+        formData.append('outputName', `merged_${language}_${Date.now()}.mp4`);
+
+        try {
+          output.textContent = 'Uploading and processing...';
+          console.log('Sending upload request...');
+          const res = await fetch(SERVER + '/test/merge-one-upload', { method: 'POST', body: formData });
+          console.log('Got response:', res.status);
+          const result = await res.json();
+          console.log('Result:', result);
+          
+          show(result);
+          
+          if (result.status === 'success' && result.outputUrl) {
+            showVideoLink(result.outputUrl, result.outputFile);
+          }
+        } catch (err) { 
+          console.error('Error:', err);
+          showError(err);
+        }
+      } else {
+        // URL mode
+        const videoUrl = document.getElementById('oneVideoUrl').value.trim();
+        const audioUrl = document.getElementById('oneAudioUrl').value.trim();
+
+        if (!videoUrl || !audioUrl) {
+          output.textContent = 'Please provide both video URL and audio URL.';
+          return;
+        }
+
+        const body = {
+          videoUrl,
+          audioUrl,
+          outputName: `merged_${language}_${Date.now()}.mp4`
+        };
+
+        try {
+          output.textContent = 'Downloading and processing...\nThis may take a while for large files...';
+          console.log('Sending URL request...');
+          const res = await fetch(SERVER + '/test/merge-one', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          console.log('Got response:', res.status);
+          const result = await res.json();
+          console.log('Result:', result);
+          
+          show(result);
+          
+          if (result.status === 'success' && result.outputUrl) {
+            showVideoLink(result.outputUrl, result.outputFile);
+          }
+        } catch (err) { 
+          console.error('Error:', err);
+          showError(err);
+        }
       }
       
       console.log('Request completed');
@@ -310,40 +410,93 @@ function renderLanguageInputs() {
 }
 
 async function callMergeMulti() {
-  output.textContent = 'Calling /test/merge-multiple-upload...';
+  output.textContent = 'Processing...';
   videoLink.style.display = 'none';
   
-  const videoFile = document.getElementById('multiVideo').files[0];
+  const mode = document.querySelector('input[name="multiMode"]:checked').value;
 
-  if (!videoFile || multiAudioFiles.length === 0) {
-    output.textContent = 'Pick a video and at least one audio file first.';
-    return;
-  }
+  if (mode === 'upload') {
+    // Upload mode
+    const videoFile = document.getElementById('multiVideo').files[0];
 
-  const formData = new FormData();
-  formData.append('video', videoFile);
-  const languages = [];
-  for (const entry of multiAudioFiles) {
-    formData.append('audios', entry.file);
-    languages.push(entry.language);
-  }
-  formData.append('languages', JSON.stringify(languages));
-
-  try {
-    output.textContent = `Processing ${multiAudioFiles.length} audio tracks...`;
-    const res = await fetch(SERVER + '/test/merge-multiple-upload', { method: 'POST', body: formData });
-    const result = await res.json();
-    show(result);
-    
-    // Show download links if successful
-    if ((result.status === 'success' || result.status === 'partial') && result.results) {
-      let linksHtml = '<br><br><strong>Download Links:</strong><br>';
-      result.results.forEach(r => {
-        linksHtml += `<a href="${r.outputUrl}" target="_blank" style="display:block; margin:5px 0;">${r.language}: ${r.outputFile}</a>`;
-      });
-      output.innerHTML = output.textContent + linksHtml;
+    if (!videoFile || multiAudioFiles.length === 0) {
+      output.textContent = 'Pick a video and at least one audio file first.';
+      return;
     }
-  } catch (err) { showError(err); }
+
+    const formData = new FormData();
+    formData.append('video', videoFile);
+    const languages = [];
+    for (const entry of multiAudioFiles) {
+      formData.append('audios', entry.file);
+      languages.push(entry.language);
+    }
+    formData.append('languages', JSON.stringify(languages));
+
+    try {
+      output.textContent = `Processing ${multiAudioFiles.length} audio tracks...`;
+      const res = await fetch(SERVER + '/test/merge-multiple-upload', { method: 'POST', body: formData });
+      const result = await res.json();
+      show(result);
+      
+      // Show download links if successful
+      if ((result.status === 'success' || result.status === 'partial') && result.results) {
+        let linksHtml = '<br><br><strong>Download Links:</strong><br>';
+        result.results.forEach(r => {
+          linksHtml += `<a href="${r.outputUrl}" target="_blank" style="display:block; margin:5px 0;">${r.language}: ${r.outputFile}</a>`;
+        });
+        output.innerHTML = output.textContent + linksHtml;
+      }
+    } catch (err) { showError(err); }
+  } else {
+    // URL mode
+    const videoUrl = document.getElementById('multiVideoUrl').value.trim();
+    const audioTracksText = document.getElementById('multiAudioTracksJson').value.trim();
+
+    if (!videoUrl || !audioTracksText) {
+      output.textContent = 'Please provide video URL and audio tracks JSON.';
+      return;
+    }
+
+    let audioTracks;
+    try {
+      audioTracks = JSON.parse(audioTracksText);
+    } catch (err) {
+      output.textContent = 'Error: Invalid JSON in audio tracks field\n' + err.message;
+      return;
+    }
+
+    if (!Array.isArray(audioTracks) || audioTracks.length === 0) {
+      output.textContent = 'Error: Audio tracks must be a non-empty array';
+      return;
+    }
+
+    const body = {
+      videoUrl,
+      audioTracks
+    };
+
+    try {
+      output.textContent = `Downloading and processing ${audioTracks.length} audio tracks...\nThis may take several minutes...`;
+      const res = await fetch(SERVER + '/test/merge-multiple', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      
+      const result = await res.json();
+      show(result);
+      
+      // Show download links if successful
+      if ((result.status === 'success' || result.status === 'partial') && result.results) {
+        let linksHtml = '<br><br><strong>Download Links:</strong><br>';
+        result.results.forEach(r => {
+          linksHtml += `<a href="${r.outputUrl}" target="_blank" style="display:block; margin:5px 0;">${r.language}: ${r.outputFile}</a>`;
+        });
+        output.innerHTML = output.textContent + linksHtml;
+      }
+    } catch (err) { showError(err); }
+  }
 }
 </script>
 
