@@ -4,12 +4,53 @@
 <meta charset="UTF-8">
 <title>Dubbing Merge Server — Debug Tool</title>
 <style>
-  body { margin: 16px; }
-  .layout { display: flex; gap: 24px; align-items: stretch; }
-  .controls { flex: 1; min-width: 0; }
-  .response-col { flex: 1; min-width: 0; position: sticky; top: 16px; align-self: stretch; display: flex; flex-direction: column; }
+  body { 
+    margin: 16px; 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  }
+  .layout { display: flex; gap: 24px; }
+  .controls { flex: 1; }
+  .response-col { flex: 1; }
   .controls hr { margin: 24px 0; }
-  #output { border: 1px solid #000; padding: 10px; white-space: pre-wrap; flex: 1; margin: 0; }
+  #output { 
+    border: 1px solid #ccc; 
+    padding: 15px; 
+    background: #f5f5f5;
+    white-space: pre-wrap;
+    min-height: 200px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 13px;
+  }
+  #videoLink {
+    margin-top: 15px;
+    padding: 15px;
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 4px;
+    display: none;
+  }
+  #videoLink a {
+    color: #007bff;
+    font-weight: bold;
+    font-size: 14px;
+    word-break: break-all;
+  }
+  button {
+    padding: 8px 16px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  button:hover {
+    background: #0056b3;
+  }
+  input[type="file"], select, input[type="text"], textarea {
+    font-size: 13px;
+  }
 </style>
 </head>
 <body>
@@ -21,7 +62,7 @@
   <div class="controls">
 
     <h2>Health check</h2>
-    <button onclick="callHealth()">GET /health</button>
+    <button type="button" onclick="callHealth()">GET /health</button>
 
     <hr>
 
@@ -41,36 +82,22 @@
         <option value="fil-PH">Filipino</option>
       </select>
     </p>
-    <button onclick="callMergeOne()">POST /test/merge-one</button>
+    <button type="button" id="mergeBtn">POST /test/merge-one</button>
 
     <hr>
 
     <h2>Multiple audio tracks, one video</h2>
     <p>Video: <input type="file" id="multiVideo" accept="video/*"></p>
-    <p>Audio files (pick one at a time, or select several — each add appends): <input type="file" id="multiAudios" accept="audio/*" multiple onchange="addAudioFiles(this.files)"></p>
+    <p>Audio files: <input type="file" id="multiAudios" accept="audio/*" multiple onchange="addAudioFiles(this.files)"></p>
     <div id="languageInputs"></div>
-    <button onclick="callMergeMulti()">POST /test/merge-multi</button>
-
-    <hr>
-
-    <h2>Full job via real /merge contract</h2>
-    <p>jobId: <input type="text" id="jobId" value="test-job-1"></p>
-    <p>projectId: <input type="text" id="projectId" value="proj_test"></p>
-    <p>videoUrl: <input type="text" id="videoUrl" size="50" value="http://localhost:8080/samples/video.mp4"></p>
-    <p>audioTracks (JSON): <br>
-    <textarea id="audioTracks" rows="4" cols="60">[
-  { "language": "fr-FR", "audioUrl": "http://localhost:8080/samples/audio-fr.mp3" },
-  { "language": "de-DE", "audioUrl": "http://localhost:8080/samples/audio-de.mp3" }
-]</textarea></p>
-    <p>webhookUrl: <input type="text" id="webhookUrl" size="50" value="http://localhost:8081/webhook"></p>
-    <p>x-dubbing-secret: <input type="text" id="secret" value="local-test-secret-change-me"></p>
-    <button onclick="callRealMerge()">POST /merge</button>
+    <button type="button" onclick="callMergeMulti()">POST /test/merge-multi</button>
 
   </div>
 
   <div class="response-col">
     <h3>Response:</h3>
-    <pre id="output"></pre>
+    <pre id="output">No requests yet...</pre>
+    <div id="videoLink"></div>
   </div>
 
 </div>
@@ -78,6 +105,71 @@
 <script>
 const SERVER = 'http://localhost:8080';
 const output = document.getElementById('output');
+const videoLink = document.getElementById('videoLink');
+
+// Debug: Log if page is trying to reload
+window.addEventListener('beforeunload', function(e) {
+  console.log('⚠️ WARNING: Page is trying to unload/reload!');
+});
+
+// Debug: Log when page loads
+console.log('✓ Page loaded successfully');
+
+// Add event listener to button instead of onclick
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('DOM loaded, attaching event listeners');
+  
+  const mergeBtn = document.getElementById('mergeBtn');
+  if (mergeBtn) {
+    mergeBtn.addEventListener('click', async function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      console.log('Button clicked via addEventListener');
+      
+      output.textContent = 'Calling /test/merge-one-upload...';
+      videoLink.style.display = 'none';
+      
+      const videoFile = document.getElementById('oneVideo').files[0];
+      const audioFile = document.getElementById('oneAudio').files[0];
+      const language = document.getElementById('oneLanguage').value;
+
+      console.log('Files:', videoFile, audioFile);
+
+      if (!videoFile || !audioFile) {
+        output.textContent = 'Please select both a video and an audio file.';
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('video', videoFile);
+      formData.append('audio', audioFile);
+      formData.append('language', language);
+      formData.append('outputName', `merged_${language}_${Date.now()}.mp4`);
+
+      try {
+        output.textContent = 'Uploading and processing...';
+        console.log('Sending fetch request...');
+        const res = await fetch(SERVER + '/test/merge-one-upload', { method: 'POST', body: formData });
+        console.log('Got response:', res.status);
+        const result = await res.json();
+        console.log('Result:', result);
+        
+        show(result);
+        
+        if (result.status === 'success' && result.outputUrl) {
+          showVideoLink(result.outputUrl, result.outputFile);
+        }
+      } catch (err) { 
+        console.error('Error:', err);
+        showError(err);
+      }
+      
+      console.log('Request completed');
+    }, false);
+    console.log('✓ Event listener attached to merge button');
+  }
+});
 
 function show(data) {
   output.textContent = JSON.stringify(data, null, 2);
@@ -85,36 +177,75 @@ function show(data) {
 
 function showError(err) {
   output.textContent = 'Error: ' + err.message;
+  videoLink.style.display = 'none';
+}
+
+function showVideoLink(url, filename) {
+  videoLink.innerHTML = `
+    <strong>✓ Success!</strong><br><br>
+    <strong>Download/View:</strong><br>
+    <a href="${url}" target="_blank">${url}</a>
+  `;
+  videoLink.style.display = 'block';
 }
 
 async function callHealth() {
+  console.log('callHealth() started');
   output.textContent = 'Calling /health...';
+  videoLink.style.display = 'none';
   try {
     const res = await fetch(SERVER + '/health');
     show(await res.json());
   } catch (err) { showError(err); }
 }
 
-async function callMergeOne() {
-  output.textContent = 'Calling /test/merge-one...';
+async function callMergeOne(e) {
+  console.log('callMergeOne() started', e);
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  
+  output.textContent = 'Calling /test/merge-one-upload...';
+  videoLink.style.display = 'none';
+  
   const videoFile = document.getElementById('oneVideo').files[0];
   const audioFile = document.getElementById('oneAudio').files[0];
   const language = document.getElementById('oneLanguage').value;
 
+  console.log('Files:', videoFile, audioFile);
+
   if (!videoFile || !audioFile) {
-    output.textContent = 'Pick both a video and an audio file first.';
-    return;
+    output.textContent = 'Please select both a video and an audio file.';
+    return false;
   }
 
   const formData = new FormData();
   formData.append('video', videoFile);
   formData.append('audio', audioFile);
   formData.append('language', language);
+  formData.append('outputName', `merged_${language}_${Date.now()}.mp4`);
 
   try {
-    const res = await fetch(SERVER + '/test/merge-one', { method: 'POST', body: formData });
-    show(await res.json());
-  } catch (err) { showError(err); }
+    output.textContent = 'Uploading and processing...';
+    console.log('Sending fetch request...');
+    const res = await fetch(SERVER + '/test/merge-one-upload', { method: 'POST', body: formData });
+    console.log('Got response:', res.status);
+    const result = await res.json();
+    console.log('Result:', result);
+    
+    show(result);
+    
+    if (result.status === 'success' && result.outputUrl) {
+      showVideoLink(result.outputUrl, result.outputFile);
+    }
+  } catch (err) { 
+    console.error('Error:', err);
+    showError(err);
+  }
+  
+  console.log('callMergeOne() finished');
+  return false;
 }
 
 const LANGUAGE_OPTIONS = [
@@ -129,17 +260,12 @@ const LANGUAGE_OPTIONS = [
   { value: 'fil-PH', label: 'Filipino' },
 ];
 
-// The native <input type="file" multiple> REPLACES its selection every time
-// you open the picker again — it doesn't append. So we keep our own running
-// list here and add newly picked files to it, instead of reading straight
-// from the input each time.
-let multiAudioFiles = []; // [{ file, language }]
+let multiAudioFiles = [];
 
 function addAudioFiles(fileList) {
   for (const file of fileList) {
     multiAudioFiles.push({ file, language: LANGUAGE_OPTIONS[multiAudioFiles.length % LANGUAGE_OPTIONS.length].value });
   }
-  // Reset the input so selecting the same file(s) again still fires onchange
   document.getElementById('multiAudios').value = '';
   renderLanguageInputs();
 }
@@ -185,6 +311,8 @@ function renderLanguageInputs() {
 
 async function callMergeMulti() {
   output.textContent = 'Calling /test/merge-multi...';
+  videoLink.style.display = 'none';
+  
   const videoFile = document.getElementById('multiVideo').files[0];
 
   if (!videoFile || multiAudioFiles.length === 0) {
@@ -203,38 +331,6 @@ async function callMergeMulti() {
 
   try {
     const res = await fetch(SERVER + '/test/merge-multi', { method: 'POST', body: formData });
-    show(await res.json());
-  } catch (err) { showError(err); }
-}
-
-async function callRealMerge() {
-  output.textContent = 'Calling /merge...';
-
-  let audioTracks;
-  try {
-    audioTracks = JSON.parse(document.getElementById('audioTracks').value);
-  } catch (err) {
-    output.textContent = 'audioTracks is not valid JSON: ' + err.message;
-    return;
-  }
-
-  const payload = {
-    jobId: document.getElementById('jobId').value,
-    projectId: document.getElementById('projectId').value,
-    videoUrl: document.getElementById('videoUrl').value,
-    audioTracks: audioTracks,
-    webhookUrl: document.getElementById('webhookUrl').value,
-  };
-
-  try {
-    const res = await fetch(SERVER + '/merge', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-dubbing-secret': document.getElementById('secret').value,
-      },
-      body: JSON.stringify(payload),
-    });
     show(await res.json());
   } catch (err) { showError(err); }
 }

@@ -8,16 +8,22 @@
     "dev": "node server.js",
     "test:webhook": "node test/fakeWebhookReceiver.js"
   },
-  "keywords": ["dubbing", "ffmpeg", "video", "audio", "merge"],
+  "keywords": [
+    "dubbing",
+    "ffmpeg",
+    "video",
+    "audio",
+    "merge"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "express": "^5.2.1",
     "cors": "^2.8.5",
-    "dotenv": "^16.0.3"
+    "dotenv": "^16.0.3",
+    "express": "^5.2.1",
+    "multer": "^2.2.0"
   },
-  "devDependencies": {},
   "engines": {
     "node": ">=14.0.0"
   }

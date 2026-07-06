@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  dubbing-server:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./storage:/app/storage
+      - ./temp:/app/temp
+      - ./public/output:/app/public/output
+    env_file:
+      - .env
+    restart: unless-stopped
