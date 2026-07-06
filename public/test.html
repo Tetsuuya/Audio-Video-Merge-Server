@@ -28,13 +28,27 @@
     <h2>Single audio + video merge</h2>
     <p>Video: <input type="file" id="oneVideo" accept="video/*"></p>
     <p>Audio: <input type="file" id="oneAudio" accept="audio/*"></p>
+    <p>Language:
+      <select id="oneLanguage">
+        <option value="en-US">English</option>
+        <option value="es-ES">Spanish</option>
+        <option value="fr-FR">French</option>
+        <option value="zh-CN">Chinese</option>
+        <option value="ko-KR">Korean</option>
+        <option value="ja-JP">Japanese</option>
+        <option value="pt-PT">Portuguese</option>
+        <option value="pt-BR">Brazilian Portuguese</option>
+        <option value="fil-PH">Filipino</option>
+      </select>
+    </p>
     <button onclick="callMergeOne()">POST /test/merge-one</button>
 
     <hr>
 
     <h2>Multiple audio tracks, one video</h2>
     <p>Video: <input type="file" id="multiVideo" accept="video/*"></p>
-    <p>Audio files (select 2-3): <input type="file" id="multiAudios" accept="audio/*" multiple></p>
+    <p>Audio files (pick one at a time, or select several — each add appends): <input type="file" id="multiAudios" accept="audio/*" multiple onchange="addAudioFiles(this.files)"></p>
+    <div id="languageInputs"></div>
     <button onclick="callMergeMulti()">POST /test/merge-multi</button>
 
     <hr>
@@ -85,6 +99,7 @@ async function callMergeOne() {
   output.textContent = 'Calling /test/merge-one...';
   const videoFile = document.getElementById('oneVideo').files[0];
   const audioFile = document.getElementById('oneAudio').files[0];
+  const language = document.getElementById('oneLanguage').value;
 
   if (!videoFile || !audioFile) {
     output.textContent = 'Pick both a video and an audio file first.';
@@ -94,6 +109,7 @@ async function callMergeOne() {
   const formData = new FormData();
   formData.append('video', videoFile);
   formData.append('audio', audioFile);
+  formData.append('language', language);
 
   try {
     const res = await fetch(SERVER + '/test/merge-one', { method: 'POST', body: formData });
@@ -101,21 +117,89 @@ async function callMergeOne() {
   } catch (err) { showError(err); }
 }
 
+const LANGUAGE_OPTIONS = [
+  { value: 'en-US', label: 'English' },
+  { value: 'es-ES', label: 'Spanish' },
+  { value: 'fr-FR', label: 'French' },
+  { value: 'zh-CN', label: 'Chinese' },
+  { value: 'ko-KR', label: 'Korean' },
+  { value: 'ja-JP', label: 'Japanese' },
+  { value: 'pt-PT', label: 'Portuguese' },
+  { value: 'pt-BR', label: 'Brazilian Portuguese' },
+  { value: 'fil-PH', label: 'Filipino' },
+];
+
+// The native <input type="file" multiple> REPLACES its selection every time
+// you open the picker again — it doesn't append. So we keep our own running
+// list here and add newly picked files to it, instead of reading straight
+// from the input each time.
+let multiAudioFiles = []; // [{ file, language }]
+
+function addAudioFiles(fileList) {
+  for (const file of fileList) {
+    multiAudioFiles.push({ file, language: LANGUAGE_OPTIONS[multiAudioFiles.length % LANGUAGE_OPTIONS.length].value });
+  }
+  // Reset the input so selecting the same file(s) again still fires onchange
+  document.getElementById('multiAudios').value = '';
+  renderLanguageInputs();
+}
+
+function removeAudioFile(index) {
+  multiAudioFiles.splice(index, 1);
+  renderLanguageInputs();
+}
+
+function renderLanguageInputs() {
+  const container = document.getElementById('languageInputs');
+  container.innerHTML = '';
+
+  multiAudioFiles.forEach((entry, i) => {
+    const row = document.createElement('p');
+
+    const label = document.createElement('span');
+    label.textContent = entry.file.name + '  ';
+    row.appendChild(label);
+
+    const select = document.createElement('select');
+    select.className = 'lang-select';
+    select.dataset.index = i;
+    LANGUAGE_OPTIONS.forEach((opt) => {
+      const option = document.createElement('option');
+      option.value = opt.value;
+      option.textContent = opt.label;
+      if (opt.value === entry.language) option.selected = true;
+      select.appendChild(option);
+    });
+    select.onchange = () => { entry.language = select.value; };
+    row.appendChild(select);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.textContent = 'Remove';
+    removeBtn.onclick = () => removeAudioFile(i);
+    row.appendChild(removeBtn);
+
+    container.appendChild(row);
+  });
+}
+
 async function callMergeMulti() {
   output.textContent = 'Calling /test/merge-multi...';
   const videoFile = document.getElementById('multiVideo').files[0];
-  const audioFiles = document.getElementById('multiAudios').files;
 
-  if (!videoFile || audioFiles.length === 0) {
+  if (!videoFile || multiAudioFiles.length === 0) {
     output.textContent = 'Pick a video and at least one audio file first.';
     return;
   }
 
   const formData = new FormData();
   formData.append('video', videoFile);
-  for (const audio of audioFiles) {
-    formData.append('audios', audio);
+  const languages = [];
+  for (const entry of multiAudioFiles) {
+    formData.append('audios', entry.file);
+    languages.push(entry.language);
   }
+  formData.append('languages', JSON.stringify(languages));
 
   try {
     const res = await fetch(SERVER + '/test/merge-multi', { method: 'POST', body: formData });
