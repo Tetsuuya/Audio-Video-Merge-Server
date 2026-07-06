@@ -310,7 +310,7 @@ function renderLanguageInputs() {
 }
 
 async function callMergeMulti() {
-  output.textContent = 'Calling /test/merge-multi...';
+  output.textContent = 'Calling /test/merge-multiple-upload...';
   videoLink.style.display = 'none';
   
   const videoFile = document.getElementById('multiVideo').files[0];
@@ -330,8 +330,19 @@ async function callMergeMulti() {
   formData.append('languages', JSON.stringify(languages));
 
   try {
-    const res = await fetch(SERVER + '/test/merge-multi', { method: 'POST', body: formData });
-    show(await res.json());
+    output.textContent = `Processing ${multiAudioFiles.length} audio tracks...`;
+    const res = await fetch(SERVER + '/test/merge-multiple-upload', { method: 'POST', body: formData });
+    const result = await res.json();
+    show(result);
+    
+    // Show download links if successful
+    if ((result.status === 'success' || result.status === 'partial') && result.results) {
+      let linksHtml = '<br><br><strong>Download Links:</strong><br>';
+      result.results.forEach(r => {
+        linksHtml += `<a href="${r.outputUrl}" target="_blank" style="display:block; margin:5px 0;">${r.language}: ${r.outputFile}</a>`;
+      });
+      output.innerHTML = output.textContent + linksHtml;
+    }
   } catch (err) { showError(err); }
 }
 </script>

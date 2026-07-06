@@ -214,30 +214,222 @@ router.post('/merge-one-upload', upload.fields([
   }
 });
 
-// POST /test/merge-multiple - Test multiple audio tracks
+// POST /test/merge-multiple - Test multiple audio tracks with file paths
 router.post('/merge-multiple', async (req, res) => {
   const { videoPath, audioTracks } = req.body;
 
   if (!videoPath || !audioTracks || !Array.isArray(audioTracks)) {
     return res.status(400).json({
       status: 'error',
-      message: 'Missing or invalid fields: videoPath, audioTracks (array)'
+      message: 'Missing or invalid fields: videoPath, audioTracks (array of {language, audioPath})'
     });
   }
 
+  const startTime = Date.now();
+  const results = [];
+  const errors = [];
+
   try {
-    // TODO: Implement multiple track merge
-    // Loop through audioTracks and merge each one
-    
+    // Validate video file exists
+    await fs.access(videoPath);
+    const videoDuration = await getDuration(videoPath);
+
+    console.log(`\n🎬 Processing ${audioTracks.length} audio tracks for video: ${path.basename(videoPath)}`);
+    console.log(`Video duration: ${videoDuration.toFixed(2)}s\n`);
+
+    // Process each audio track
+    for (let i = 0; i < audioTracks.length; i++) {
+      const track = audioTracks[i];
+      const { language, audioPath } = track;
+
+      if (!language || !audioPath) {
+        errors.push({
+          track: i + 1,
+          language: language || 'unknown',
+          error: 'Missing language or audioPath'
+        });
+        continue;
+      }
+
+      try {
+        // Validate audio file
+        await fs.access(audioPath);
+        const audioDuration = await getDuration(audioPath);
+
+        console.log(`[${i + 1}/${audioTracks.length}] ${language}: ${path.basename(audioPath)} (${audioDuration.toFixed(2)}s)`);
+
+        // Generate output filename
+        const timestamp = Date.now();
+        const outputFileName = `merged_${language}_${timestamp}.mp4`;
+        const outputPath = path.join(process.cwd(), 'public', 'output', outputFileName);
+
+        // Merge
+        await mergeAudioVideo(videoPath, audioPath, outputPath);
+
+        // Get output info
+        const stats = await fs.stat(outputPath);
+        const outputDuration = await getDuration(outputPath);
+        const serverUrl = process.env.SERVER_URL || 'http://localhost:8080';
+
+        results.push({
+          language,
+          status: 'success',
+          outputUrl: `${serverUrl}/output/${outputFileName}`,
+          outputFile: outputFileName,
+          fileSize: stats.size,
+          duration: outputDuration,
+          inputDuration: audioDuration
+        });
+
+        console.log(`  ✓ Success: ${outputFileName} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
+
+      } catch (error) {
+        console.error(`  ✗ Failed: ${error.message}`);
+        errors.push({
+          track: i + 1,
+          language,
+          error: error.message
+        });
+      }
+    }
+
+    const totalDuration = Date.now() - startTime;
+
+    console.log(`\n✓ Batch complete: ${results.length} successful, ${errors.length} failed (${totalDuration}ms)\n`);
+
     res.json({
-      status: 'success',
-      message: 'Multiple merge test not yet implemented',
-      tracksToProcess: audioTracks.length
+      status: errors.length === 0 ? 'success' : 'partial',
+      processed: audioTracks.length,
+      successful: results.length,
+      failed: errors.length,
+      duration: totalDuration,
+      results,
+      errors: errors.length > 0 ? errors : undefined
     });
+
   } catch (error) {
+    console.error('Batch merge failed:', error);
     res.status(500).json({
       status: 'error',
-      message: error.message
+      message: error.message,
+      duration: Date.now() - startTime
+    });
+  }
+});
+
+// POST /test/merge-multiple-upload - Test multiple audio tracks with file uploads
+router.post('/merge-multiple-upload', upload.fields([
+  { name: 'video', maxCount: 1 },
+  { name: 'audios', maxCount: 50 } // Support up to 50 audio tracks
+]), async (req, res) => {
+  const startTime = Date.now();
+  const results = [];
+  const errors = [];
+  const tempFiles = [];
+
+  try {
+    if (!req.files || !req.files.video || !req.files.audios) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Missing video or audio files'
+      });
+    }
+
+    const videoPath = req.files.video[0].path;
+    tempFiles.push(videoPath);
+    
+    const audioFiles = req.files.audios;
+    const languages = JSON.parse(req.body.languages || '[]');
+
+    if (languages.length !== audioFiles.length) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Languages array length must match number of audio files'
+      });
+    }
+
+    const videoDuration = await getDuration(videoPath);
+    console.log(`\n🎬 Processing ${audioFiles.length} audio tracks`);
+    console.log(`Video duration: ${videoDuration.toFixed(2)}s\n`);
+
+    // Process each audio file
+    for (let i = 0; i < audioFiles.length; i++) {
+      const audioFile = audioFiles[i];
+      const language = languages[i];
+      const audioPath = audioFile.path;
+      tempFiles.push(audioPath);
+
+      try {
+        const audioDuration = await getDuration(audioPath);
+        console.log(`[${i + 1}/${audioFiles.length}] ${language}: ${audioFile.originalname} (${audioDuration.toFixed(2)}s)`);
+
+        // Generate output
+        const timestamp = Date.now();
+        const outputFileName = `merged_${language}_${timestamp}_${i}.mp4`;
+        const outputPath = path.join(process.cwd(), 'public', 'output', outputFileName);
+
+        await fs.mkdir(path.dirname(outputPath), { recursive: true });
+
+        // Merge
+        await mergeAudioVideo(videoPath, audioPath, outputPath);
+
+        // Get output info
+        const stats = await fs.stat(outputPath);
+        const outputDuration = await getDuration(outputPath);
+        const serverUrl = process.env.SERVER_URL || 'http://localhost:8080';
+
+        results.push({
+          language,
+          status: 'success',
+          outputUrl: `${serverUrl}/output/${outputFileName}`,
+          outputFile: outputFileName,
+          fileSize: stats.size,
+          duration: outputDuration,
+          inputDuration: audioDuration
+        });
+
+        console.log(`  ✓ Success: ${outputFileName} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
+
+      } catch (error) {
+        console.error(`  ✗ Failed: ${error.message}`);
+        errors.push({
+          track: i + 1,
+          language,
+          error: error.message
+        });
+      }
+    }
+
+    // Clean up temp files
+    for (const file of tempFiles) {
+      await fs.unlink(file).catch(() => {});
+    }
+
+    const totalDuration = Date.now() - startTime;
+    console.log(`\n✓ Batch complete: ${results.length} successful, ${errors.length} failed (${totalDuration}ms)\n`);
+
+    res.json({
+      status: errors.length === 0 ? 'success' : 'partial',
+      processed: audioFiles.length,
+      successful: results.length,
+      failed: errors.length,
+      duration: totalDuration,
+      results,
+      errors: errors.length > 0 ? errors : undefined
+    });
+
+  } catch (error) {
+    console.error('Batch merge failed:', error);
+    
+    // Clean up temp files on error
+    for (const file of tempFiles) {
+      await fs.unlink(file).catch(() => {});
+    }
+
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
+      duration: Date.now() - startTime
     });
   }
 });
