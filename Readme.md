@@ -5,11 +5,13 @@ A standalone Node.js server for merging audio tracks with video files using FFmp
 ## Features
 
 - 🎬 **Audio/Video Merging** - Replace video audio with dubbed audio tracks
+- 🌍 **Multi-language Support** - Process up to 50 audio tracks in one request
 - ⚡ **Fast Processing** - Uses FFmpeg with video stream copy (no re-encoding)
-- 🌍 **Multi-language Support** - Handle multiple audio tracks for different languages
+- 📦 **Batch Processing** - Merge multiple languages simultaneously
 - 🔒 **Secure** - Authentication via custom secret header
 - 📦 **Docker Ready** - Includes Dockerfile with FFmpeg pre-installed
 - 🧪 **Test Endpoints** - Easy testing with local files or uploads
+- 🧹 **Auto Cleanup** - Automatic removal of old files
 
 ## Quick Start
 
@@ -156,6 +158,109 @@ curl -X POST http://localhost:8080/test/merge-one-upload \
 
 ---
 
+### Test: Merge Multiple Audio Tracks (File Paths)
+
+**POST** `/test/merge-multiple`
+
+Merge one video with multiple audio tracks (different languages) using local file paths.
+
+**Request Body:**
+```json
+{
+  "videoPath": "C:/path/to/video.mp4",
+  "audioTracks": [
+    {
+      "language": "es-ES",
+      "audioPath": "C:/path/to/spanish.mp3"
+    },
+    {
+      "language": "fr-FR",
+      "audioPath": "C:/path/to/french.mp3"
+    },
+    {
+      "language": "en-US",
+      "audioPath": "C:/path/to/english.mp3"
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "processed": 3,
+  "successful": 3,
+  "failed": 0,
+  "duration": 3245,
+  "results": [
+    {
+      "language": "es-ES",
+      "status": "success",
+      "outputUrl": "http://localhost:8080/output/merged_es-ES_123.mp4",
+      "outputFile": "merged_es-ES_123.mp4",
+      "fileSize": 15728640,
+      "duration": 120.5,
+      "inputDuration": 121.0
+    },
+    {
+      "language": "fr-FR",
+      "status": "success",
+      "outputUrl": "http://localhost:8080/output/merged_fr-FR_456.mp4",
+      "outputFile": "merged_fr-FR_456.mp4",
+      "fileSize": 15820544,
+      "duration": 120.5,
+      "inputDuration": 120.8
+    },
+    {
+      "language": "en-US",
+      "status": "success",
+      "outputUrl": "http://localhost:8080/output/merged_en-US_789.mp4",
+      "outputFile": "merged_en-US_789.mp4",
+      "fileSize": 15650240,
+      "duration": 120.5,
+      "inputDuration": 120.3
+    }
+  ]
+}
+```
+
+**Limits:**
+- No hard limit on number of tracks
+- Practical limit: ~20-30 tracks (processing time)
+
+---
+
+### Test: Merge Multiple Audio Tracks (File Upload)
+
+**POST** `/test/merge-multiple-upload`
+
+Merge one video with multiple audio tracks using file uploads.
+
+**Form Data:**
+- `video` (file) - Video file to process
+- `audios` (files, multiple) - Multiple audio files (up to 50)
+- `languages` (text) - JSON array of language codes matching audio files order
+
+**Example (cURL):**
+```bash
+curl -X POST http://localhost:8080/test/merge-multiple-upload \
+  -F "video=@video.mp4" \
+  -F "audios=@spanish.mp3" \
+  -F "audios=@french.mp3" \
+  -F "audios=@english.mp3" \
+  -F 'languages=["es-ES","fr-FR","en-US"]'
+```
+
+**Response:** Same structure as `/test/merge-multiple`
+
+**Limits:**
+- Maximum 50 audio files per request
+- Each file: 500MB max
+- Processing time: ~0.5-2s per audio track
+
+---
+
 ### Production: Full Merge Job
 
 **POST** `/merge`
@@ -255,7 +360,7 @@ Or use the simpler version: `http://localhost:8080/simple-test.html`
 
 Import the included Postman collection or test manually:
 
-**Test with file paths:**
+**Test single merge with file paths:**
 ```json
 POST http://localhost:8080/test/merge-one
 Content-Type: application/json
@@ -266,6 +371,26 @@ Content-Type: application/json
 }
 ```
 
+**Test multiple merges with file paths:**
+```json
+POST http://localhost:8080/test/merge-multiple
+Content-Type: application/json
+
+{
+  "videoPath": "C:\\Users\\YourName\\Downloads\\video.mp4",
+  "audioTracks": [
+    {
+      "language": "es-ES",
+      "audioPath": "C:\\Users\\YourName\\Downloads\\spanish.mp3"
+    },
+    {
+      "language": "fr-FR",
+      "audioPath": "C:\\Users\\YourName\\Downloads\\french.mp3"
+    }
+  ]
+}
+```
+
 **Test with file upload:**
 ```
 POST http://localhost:8080/test/merge-one-upload
@@ -273,6 +398,16 @@ Content-Type: multipart/form-data
 
 video: <select file>
 audio: <select file>
+```
+
+**Test multiple uploads:**
+```
+POST http://localhost:8080/test/merge-multiple-upload
+Content-Type: multipart/form-data
+
+video: <select file>
+audios: <select multiple files>
+languages: ["es-ES","fr-FR","en-US"]
 ```
 
 ### Node.js Test Script
