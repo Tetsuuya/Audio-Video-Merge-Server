@@ -451,6 +451,32 @@ When audio and video durations don't match, the server uses the `-shortest` flag
 
 This ensures perfect synchronization without quality loss.
 
+### Current Strategy: Trim to Shortest (Option A)
+
+**Pros:**
+- ✅ Perfect synchronization
+- ✅ No quality degradation
+- ✅ Fast processing (no re-encoding)
+- ✅ Predictable output duration
+
+**Cons:**
+- ⚠️ May cut content if mismatch is large (>5 seconds)
+
+### Alternative Strategies (Not Implemented)
+
+**Option B: Time-Stretch Audio**
+- Stretch or compress audio to match video duration exactly
+- Uses FFmpeg `atempo` filter
+- **Use when:** Small differences (<5%), audio content is critical
+- **Drawback:** Audio sounds faster/slower (noticeable if >5% difference)
+
+**Option C: Extend Video**
+- Freeze last video frame to match longer audio
+- **Use when:** Video ends with static content (credits, logo)
+- **Drawback:** Video freezes, looks unnatural for dynamic content
+
+**To request a different strategy, open an issue or discuss with maintainers.**
+
 ## Project Structure
 
 ```
