@@ -31,9 +31,13 @@ const app = express();
 // Load environment variables
 require('dotenv').config();
 
+// Import cleanup utility
+const { startAutoCleanup } = require('./src/utils/cleanup');
+
 // Configuration
 const PORT = process.env.PORT || 8080;
 const DUBBING_SECRET = process.env.CUSTOM_DUBBING_SECRET;
+const AUTO_CLEANUP = process.env.AUTO_CLEANUP !== 'false'; // Default: enabled
 
 // Middleware
 app.use(express.json());
@@ -65,4 +69,11 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`Dubbing merge server running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
+  
+  // Start automatic cleanup if enabled
+  if (AUTO_CLEANUP) {
+    startAutoCleanup();
+  } else {
+    console.log('⚠️  Auto-cleanup disabled. Run "npm run cleanup" manually.');
+  }
 });

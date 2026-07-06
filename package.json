@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test:webhook": "node test/fakeWebhookReceiver.js"
+    "test:webhook": "node test/fakeWebhookReceiver.js",
+    "cleanup": "node scripts/cleanup.js",
+    "cleanup:all": "cross-env CLEANUP_MAX_AGE_HOURS=0 node scripts/cleanup.js"
   },
   "keywords": [
     "dubbing",
