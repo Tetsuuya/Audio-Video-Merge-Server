@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Dubbing Merge Server — Debug Tool</title>
+<style>
+  body { margin: 16px; }
+  .layout { display: flex; gap: 24px; align-items: stretch; }
+  .controls { flex: 1; min-width: 0; }
+  .response-col { flex: 1; min-width: 0; position: sticky; top: 16px; align-self: stretch; display: flex; flex-direction: column; }
+  .controls hr { margin: 24px 0; }
+  #output { border: 1px solid #000; padding: 10px; white-space: pre-wrap; flex: 1; margin: 0; }
+</style>
+</head>
+<body>
+
+<h1>Dubbing Merge Server — Debug Tool</h1>
+
+<div class="layout">
+
+  <div class="controls">
+
+    <h2>Health check</h2>
+    <button onclick="callHealth()">GET /health</button>
+
+    <hr>
+
+    <h2>Single audio + video merge</h2>
+    <p>Video: <input type="file" id="oneVideo" accept="video/*"></p>
+    <p>Audio: <input type="file" id="oneAudio" accept="audio/*"></p>
+    <button onclick="callMergeOne()">POST /test/merge-one</button>
+
+    <hr>
+
+    <h2>Multiple audio tracks, one video</h2>
+    <p>Video: <input type="file" id="multiVideo" accept="video/*"></p>
+    <p>Audio files (select 2-3): <input type="file" id="multiAudios" accept="audio/*" multiple></p>
+    <button onclick="callMergeMulti()">POST /test/merge-multi</button>
+
+    <hr>
+
+    <h2>Full job via real /merge contract</h2>
+    <p>jobId: <input type="text" id="jobId" value="test-job-1"></p>
+    <p>projectId: <input type="text" id="projectId" value="proj_test"></p>
+    <p>videoUrl: <input type="text" id="videoUrl" size="50" value="http://localhost:8080/samples/video.mp4"></p>
+    <p>audioTracks (JSON): <br>
+    <textarea id="audioTracks" rows="4" cols="60">[
+  { "language": "fr-FR", "audioUrl": "http://localhost:8080/samples/audio-fr.mp3" },
+  { "language": "de-DE", "audioUrl": "http://localhost:8080/samples/audio-de.mp3" }
+]</textarea></p>
+    <p>webhookUrl: <input type="text" id="webhookUrl" size="50" value="http://localhost:8081/webhook"></p>
+    <p>x-dubbing-secret: <input type="text" id="secret" value="local-test-secret-change-me"></p>
+    <button onclick="callRealMerge()">POST /merge</button>
+
+  </div>
+
+  <div class="response-col">
+    <h3>Response:</h3>
+    <pre id="output"></pre>
+  </div>
+
+</div>
+
+<script>
+const SERVER = 'http://localhost:8080';
+const output = document.getElementById('output');
+
+function show(data) {
+  output.textContent = JSON.stringify(data, null, 2);
+}
+
+function showError(err) {
+  output.textContent = 'Error: ' + err.message;
+}
+
+async function callHealth() {
+  output.textContent = 'Calling /health...';
+  try {
+    const res = await fetch(SERVER + '/health');
+    show(await res.json());
+  } catch (err) { showError(err); }
+}
+
+async function callMergeOne() {
+  output.textContent = 'Calling /test/merge-one...';
+  const videoFile = document.getElementById('oneVideo').files[0];
+  const audioFile = document.getElementById('oneAudio').files[0];
+
+  if (!videoFile || !audioFile) {
+    output.textContent = 'Pick both a video and an audio file first.';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('video', videoFile);
+  formData.append('audio', audioFile);
+
+  try {
+    const res = await fetch(SERVER + '/test/merge-one', { method: 'POST', body: formData });
+    show(await res.json());
+  } catch (err) { showError(err); }
+}
+
+async function callMergeMulti() {
+  output.textContent = 'Calling /test/merge-multi...';
+  const videoFile = document.getElementById('multiVideo').files[0];
+  const audioFiles = document.getElementById('multiAudios').files;
+
+  if (!videoFile || audioFiles.length === 0) {
+    output.textContent = 'Pick a video and at least one audio file first.';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('video', videoFile);
+  for (const audio of audioFiles) {
+    formData.append('audios', audio);
+  }
+
+  try {
+    const res = await fetch(SERVER + '/test/merge-multi', { method: 'POST', body: formData });
+    show(await res.json());
+  } catch (err) { showError(err); }
+}
+
+async function callRealMerge() {
+  output.textContent = 'Calling /merge...';
+
+  let audioTracks;
+  try {
+    audioTracks = JSON.parse(document.getElementById('audioTracks').value);
+  } catch (err) {
+    output.textContent = 'audioTracks is not valid JSON: ' + err.message;
+    return;
+  }
+
+  const payload = {
+    jobId: document.getElementById('jobId').value,
+    projectId: document.getElementById('projectId').value,
+    videoUrl: document.getElementById('videoUrl').value,
+    audioTracks: audioTracks,
+    webhookUrl: document.getElementById('webhookUrl').value,
+  };
+
+  try {
+    const res = await fetch(SERVER + '/merge', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-dubbing-secret': document.getElementById('secret').value,
+      },
+      body: JSON.stringify(payload),
+    });
+    show(await res.json());
+  } catch (err) { showError(err); }
+}
+</script>
+
+</body>
+</html>
