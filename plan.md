@@ -87,7 +87,7 @@ POST /api/dub-jobs
 
 ---
 
-## PHASE 1: Project Restructuring (1 day) ⚠️
+## PHASE 1: Project Restructuring (1 hour) ✅ COMPLETE
 
 **Goal:** Organize codebase to separate Merge-Only and Full Dubbing features
 
@@ -149,223 +149,6 @@ Backend/
 └── plan.md
 ```
 
-### Tasks:
-
-#### **1. Create New Folder Structure:**
-```bash
-mkdir src/merge-only
-mkdir src/merge-only/routes
-mkdir src/merge-only/services
-mkdir src/merge-only/middleware
-
-mkdir src/dubbing-pipeline
-mkdir src/dubbing-pipeline/routes
-mkdir src/dubbing-pipeline/services
-mkdir src/dubbing-pipeline/middleware
-
-mkdir src/shared
-mkdir src/shared/utils
-
-mkdir src/config
-```
-
-#### **2. Move Merge-Only Files:**
-```bash
-# Routes
-move src/routes/testMerge.js → src/merge-only/routes/testMerge.js
-move src/routes/merge.js → src/merge-only/routes/merge.js
-move src/routes/health.js → src/merge-only/routes/health.js
-
-# Services
-move src/services/ffmpegService.js → src/merge-only/services/ffmpegService.js
-move src/services/downloadService.js → src/merge-only/services/downloadService.js
-move src/services/webhookService.js → src/merge-only/services/webhookService.js
-move src/services/storageService.js → src/merge-only/services/storageService.js
-move src/services/video.js → src/merge-only/services/video.js
-
-# Middleware
-move src/middleware/auth.js → src/merge-only/middleware/auth.js
-
-# Utils
-move src/utils/cleanup.js → src/shared/utils/cleanup.js
-```
-
-#### **3. Update Import Paths in Moved Files:**
-
-Update all `require()` statements to use new paths:
-
-**Before:**
-```javascript
-const { mergeAudioVideo } = require('../services/ffmpegService');
-```
-
-**After:**
-```javascript
-const { mergeAudioVideo } = require('../merge-only/services/ffmpegService');
-```
-
-#### **4. Update `server.js`:**
-
-```javascript
-// server.js
-const express = require('express');
-const cors = require('cors');
-const app = express();
-
-require('dotenv').config();
-
-// Import cleanup utility
-const { startAutoCleanup } = require('./src/shared/utils/cleanup');
-
-// Configuration
-const PORT = process.env.PORT || 8080;
-const AUTO_CLEANUP = process.env.AUTO_CLEANUP !== 'false';
-
-// Middleware
-app.use(express.json());
-app.use(cors());
-app.use(express.static('public'));
-
-// ===== MERGE-ONLY ROUTES =====
-const healthRoute = require('./src/merge-only/routes/health');
-const mergeRoute = require('./src/merge-only/routes/merge');
-const testMergeRoute = require('./src/merge-only/routes/testMerge');
-
-app.use('/health', healthRoute);
-app.use('/merge', mergeRoute);
-app.use('/test', testMergeRoute);
-
-// ===== DUBBING PIPELINE ROUTES (Future) =====
-// const dubJobsRoute = require('./src/dubbing-pipeline/routes/dubJobs');
-// app.use('/api/dub-jobs', dubJobsRoute);
-
-// Error handling
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({
-    status: 'error',
-    message: err.message || 'Internal server error'
-  });
-});
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Dubbing Merge Server running on port ${PORT}`);
-  console.log(`📍 Merge-only API: http://localhost:${PORT}/test/merge-one`);
-  console.log(`📍 Health check: http://localhost:${PORT}/health`);
-  
-  if (AUTO_CLEANUP) {
-    startAutoCleanup();
-  }
-});
-```
-
-#### **5. Create Voice Configuration File:**
-
-```javascript
-// src/config/voices.js
-/**
- * Best graded voices per language for Kokoro TTS
- * Based on VOICES.md from hexgrad/Kokoro-82M
- */
-
-const BEST_VOICES_PER_LANGUAGE = {
-  // English
-  'en': 'af_heart',        // Grade A (best overall)
-  'en-US': 'af_heart',     // Grade A
-  'en-GB': 'bf_emma',      // Grade B-
-  
-  // Other languages
-  'es': 'ef_dora',         // Spanish Female
-  'fr': 'ff_siwis',        // Grade B- (only French voice)
-  'it': 'if_sara',         // Grade C (Female)
-  'ja': 'jf_alpha',        // Grade C+ (best Japanese)
-  'zh': 'zf_xiaobei',      // Grade D
-  'hi': 'hf_alpha',        // Grade C
-  'pt': 'pf_dora',         // Portuguese
-  'pt-BR': 'pf_dora'       // Brazilian Portuguese
-};
-
-const DEFAULT_VOICE = 'af_heart'; // Grade A - fallback
-
-const SUPPORTED_LANGUAGES = [
-  'en', 'es', 'fr', 'it', 'pt', 'hi', 'ja', 'zh'
-];
-
-module.exports = {
-  BEST_VOICES_PER_LANGUAGE,
-  DEFAULT_VOICE,
-  SUPPORTED_LANGUAGES
-};
-```
-
-#### **6. Test Everything Still Works:**
-
-```bash
-# Start server
-npm start
-
-# Test endpoints still work
-curl http://localhost:8080/health
-# Test merge endpoint (use Postman or test.html)
-```
-
-#### **7. Update `.gitignore` (if needed):**
-
-```
-# Keep these ignored
-node_modules/
-.env
-temp/*
-!temp/.gitkeep
-public/output/*
-!public/output/.gitkeep
-storage/*
-!storage/.gitkeep
-```
-
-#### **8. Commit Changes:**
-
-```bash
-git add .
-git commit -m "Phase 1: Restructure project - separate merge-only and dubbing-pipeline"
-git push origin main
-```
-
-### Deliverable:
-- ✅ Clean folder structure
-- ✅ Merge-only features in `src/merge-only/`
-- ✅ Dubbing pipeline folder ready in `src/dubbing-pipeline/`
-- ✅ Shared utilities in `src/shared/`
-- ✅ All existing functionality still works
-- ✅ Server starts without errors
-
-### Testing Checklist:
-- [ ] Server starts: `npm start`
-- [ ] Health check works: `GET /health`
-- [ ] Test merge works: `POST /test/merge-one`
-- [ ] Test multiple merge works: `POST /test/merge-multiple`
-- [ ] HTML test page loads: `http://localhost:8080/test.html`
-- [ ] File uploads work
-- [ ] URL-based merge works
-- [ ] No import errors in console
-
-### Files Modified:
-- `server.js` (update imports)
-- All files in `src/merge-only/` (update relative imports)
-- `.gitignore` (verify)
-
-### New Files Created:
-- `src/config/voices.js`
-
-### Next Phase:
-After restructuring, **Phase 2** will be Audio Extraction - adding first service to `src/dubbing-pipeline/services/`
-
----
-
-**Estimated Time:** 1 day (mostly moving files and updating imports)
-
----
 
 ## PHASE 2: Audio Extraction (1 day) ⚠️
 
@@ -1134,17 +917,17 @@ if (someLanguagesFailed) {
 | Phase | Task | Duration | Status | Start Date | End Date |
 |-------|------|----------|--------|------------|----------|
 | 0 | Foundation (Merge API) | - | ✅ COMPLETE | - | 2026-07-06 |
-| 1 | Project Restructuring | 1 day | ⚠️ TODO | | |
-| 2 | Audio Extraction | 1 day | ⚠️ TODO | | |
-| 3 | Transcription (AssemblyAI) | 2 days | ⚠️ TODO | | |
-| 4 | Translation | 2 days | ⚠️ TODO | | |
-| 5 | Text-to-Speech (Kokoro) | 2 days | ⚠️ TODO | | |
-| 6 | R2 Storage | 2 days | ⚠️ TODO | | |
-| 7 | Job Queue | 2 days | ⚠️ TODO | | |
-| 8 | Production Endpoint | 3 days | ⚠️ TODO | | |
-| 9 | Testing & Polish | 2 days | ⚠️ TODO | | |
-| 10 | Railway Deployment | 1 day | ⚠️ TODO | | |
-| **TOTAL** | | **~18 days** | | | |
+| 1 | Project Restructuring | 1 hour | ✅ COMPLETE | 2026-07-07 | 2026-07-07 |
+| 2 | Audio Extraction | 2-3 hours | ⚠️ TODO | | |
+| 3 | Transcription (AssemblyAI) | 3-4 hours | ⚠️ TODO | | |
+| 4 | Translation | 2-3 hours | ⚠️ TODO | | |
+| 5 | Text-to-Speech (Kokoro) | 3-4 hours | ⚠️ TODO | | |
+| 6 | R2 Storage | 3-4 hours | ⚠️ TODO | | |
+| 7 | Job Queue | 4-5 hours | ⚠️ TODO | | |
+| 8 | Production Endpoint | 4-6 hours | ⚠️ TODO | | |
+| 9 | Testing & Polish | 3-4 hours | ⚠️ TODO | | |
+| 10 | Railway Deployment | 1-2 hours | ⚠️ TODO | | |
+| **TOTAL** | | **~3-4 days** | **(with AI assistance)** | | |
 
 ---
 
