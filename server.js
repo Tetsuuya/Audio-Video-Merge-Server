@@ -1,27 +1,9 @@
 /**
  * MAIN SERVER ENTRY POINT
  * 
- * Purpose: Standalone audio/video merge server for the dubbing pipeline
- * 
- * This server receives video + audio tracks from the Next.js app, merges them
- * using ffmpeg, stores the results, and reports back via webhook.
- * 
- * Core responsibilities:
- * - Accept POST /merge requests (main production endpoint)
- * - Accept POST /test/merge-one for local testing (single track)
- * - Provide /health endpoint for monitoring
- * - Authenticate requests via x-dubbing-secret header
- * - Process jobs asynchronously (respond 202 Accepted immediately)
- * - Call webhook with results when processing completes
- * 
- * Flow:
- * 1. Next.js app sends POST /merge with video + audio tracks
- * 2. Server responds 202 Accepted with jobId
- * 3. Server downloads video and audio files
- * 4. For each audio track: merge with ffmpeg, save output
- * 5. Server calls webhook with download URLs
- * 
- * Deployment: Railway (production) / localhost:8080 (development)
+ * This server provides two separate APIs:
+ * 1. Merge-Only API: Merge pre-existing audio with video
+ * 2. Full Dubbing Pipeline: Extract → Transcribe → Translate → TTS → Merge
  */
 
 const express = require('express');
@@ -32,11 +14,10 @@ const app = express();
 require('dotenv').config();
 
 // Import cleanup utility
-const { startAutoCleanup } = require('./src/utils/cleanup');
+const { startAutoCleanup } = require('./src/shared/utils/cleanup');
 
 // Configuration
 const PORT = process.env.PORT || 8080;
-const DUBBING_SECRET = process.env.CUSTOM_DUBBING_SECRET;
 const AUTO_CLEANUP = process.env.AUTO_CLEANUP !== 'false'; // Default: enabled
 
 // Middleware
@@ -46,15 +27,19 @@ app.use(cors());
 // Serve static test page
 app.use(express.static('public'));
 
-// Import routes
-const healthRoute = require('./src/routes/health');
-const mergeRoute = require('./src/routes/merge');
-const testMergeRoute = require('./src/routes/testMerge');
+// ===== MERGE-ONLY API ROUTES =====
+const healthRoute = require('./src/merge-only/routes/health');
+const mergeRoute = require('./src/merge-only/routes/merge');
+const testMergeRoute = require('./src/merge-only/routes/testMerge');
 
-// Route handlers
 app.use('/health', healthRoute);
 app.use('/merge', mergeRoute);
 app.use('/test', testMergeRoute);
+
+// ===== DUBBING PIPELINE API ROUTES (Future) =====
+// Uncomment when dubbing pipeline is ready
+// const dubJobsRoute = require('./src/dubbing-pipeline/routes/dubJobs');
+// app.use('/api/dub-jobs', dubJobsRoute);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -67,8 +52,16 @@ app.use((err, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Dubbing merge server running on port ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log(`\n🚀 Dubbing Merge Server running on port ${PORT}`);
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  console.log(`📍 Merge-Only API:`);
+  console.log(`   GET  http://localhost:${PORT}/health`);
+  console.log(`   POST http://localhost:${PORT}/test/merge-one`);
+  console.log(`   POST http://localhost:${PORT}/test/merge-multiple`);
+  console.log(`   POST http://localhost:${PORT}/merge (production)`);
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  console.log(`🌐 Test Interface: http://localhost:${PORT}/test.html`);
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
   
   // Start automatic cleanup if enabled
   if (AUTO_CLEANUP) {
