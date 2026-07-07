@@ -251,37 +251,40 @@ npm install axios
 
 ### Translation Service Options:
 
-#### **Option A: Google Translate API** (Recommended)
-- Cost: $20 per 1M characters
-- Quality: Excellent
-- Setup: https://cloud.google.com/translate/docs
+#### **DeepL API** 
+- **Cost**: Free tier: 500,000 characters/month
+- **Quality**: Excellent (purpose-built for translation)
+- **Speed**: ~200-400ms per request
+- **Reliability**: Deterministic, consistent results
+- **Setup**: https://www.deepl.com/pro-api
+- **Why chosen**: Best quality for professional dubbing, easy to implement
 
-#### **Option B: DeepL API** (Best Quality)
-- Free tier: 500k characters/month
-- Quality: Best available
-- Setup: https://www.deepl.com/pro-api
-
-#### **Option C: LibreTranslate** (Free)
-- Self-hosted or free API
-- Quality: Good
-- Setup: https://libretranslate.com/
 
 ### Tasks:
-1. Choose translation service (recommend DeepL free tier)
-2. Create `src/services/translationService.js`
-3. Translate full transcript text
-4. Preserve paragraph/sentence structure
-5. Handle batch translation for multiple languages
+1. Sign up for DeepL API: https://www.deepl.com/pro-api
+2. Get free API key (500k characters/month)
+3. Create `src/dubbing-pipeline/services/translationService.js`
+4. Implement DeepL translation
+5. Add Groq as optional fallback
+6. Handle batch translation for multiple languages
 
 ### Deliverable:
 ```javascript
-// src/services/translationService.js
+// src/dubbing-pipeline/services/translationService.js
+
+// Primary: DeepL
 async function translateText(text, sourceLang, targetLang) {
-  // Returns: translated text
+  // Returns: translated text using DeepL
 }
 
+// Batch translate to multiple languages
 async function batchTranslate(text, sourceLang, targetLangs) {
   // Returns: { 'es': '...', 'fr': '...', 'it': '...' }
+}
+
+// Fallback: Groq (if DeepL fails or rate limit)
+async function translateWithGroq(text, sourceLang, targetLang) {
+  // Uses Llama 3.3 via Groq for translation
 }
 ```
 
@@ -292,19 +295,25 @@ async function batchTranslate(text, sourceLang, targetLangs) {
 - Test with long text (5000+ characters)
 
 ### Files to Create:
-- `src/services/translationService.js` (NEW)
+- `src/dubbing-pipeline/services/translationService.js` (NEW)
 
 ### Environment Variables:
-```
+```env
+# Primary translation service
 TRANSLATION_SERVICE=deepl
-DEEPL_API_KEY=your-key-here
+DEEPL_API_KEY=your-deepl-key-here
+
+# Fallback (optional)
+GROQ_API_KEY=your-groq-key-here
 ```
 
 ### Dependencies to Install:
 ```bash
+# Primary: DeepL
 npm install deepl-node
-# OR
-npm install @google-cloud/translate
+
+# Fallback: Groq (optional)
+npm install groq-sdk
 ```
 
 ---
