@@ -96,9 +96,26 @@
     <p style="font-size: 13px; color: #666;">Transcribe → Translate → Generate Speech → Merge</p>
 
     <p>
-      <label for="videoUrl">Video URL or Path:</label>
-      <input type="text" id="videoUrl" placeholder="https://example.com/video.mp4 or C:/path/to/video.mp4">
+      <input type="radio" name="videoMode" id="videoModeUrl" value="url" checked onchange="toggleVideoMode()">
+      <label for="videoModeUrl">Video URL/Path</label>
+      &nbsp;&nbsp;
+      <input type="radio" name="videoMode" id="videoModeUpload" value="upload" onchange="toggleVideoMode()">
+      <label for="videoModeUpload">Upload Video</label>
     </p>
+
+    <div id="videoUrlSection">
+      <p>
+        <label for="videoUrl">Video URL or Path:</label>
+        <input type="text" id="videoUrl" placeholder="https://example.com/video.mp4 or C:/path/to/video.mp4">
+      </p>
+    </div>
+
+    <div id="videoUploadSection" style="display: none;">
+      <p>
+        <label for="videoFile">Video File:</label>
+        <input type="file" id="videoFile" accept="video/*">
+      </p>
+    </div>
 
     <p>
       <label for="sourceLanguage">Source Language:</label>
@@ -174,13 +191,19 @@ const SERVER = 'http://localhost:8080';
 const output = document.getElementById('output');
 const videoLinks = document.getElementById('videoLinks');
 
+function toggleVideoMode() {
+  const mode = document.querySelector('input[name="videoMode"]:checked').value;
+  document.getElementById('videoUrlSection').style.display = mode === 'url' ? 'block' : 'none';
+  document.getElementById('videoUploadSection').style.display = mode === 'upload' ? 'block' : 'none';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   const dubbingBtn = document.getElementById('dubbingBtn');
   
   dubbingBtn.addEventListener('click', async function(e) {
     e.preventDefault();
     
-    const videoUrl = document.getElementById('videoUrl').value.trim();
+    const mode = document.querySelector('input[name="videoMode"]:checked').value;
     const sourceLanguage = document.getElementById('sourceLanguage').value;
     
     // Get selected target languages
@@ -188,11 +211,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.checkbox-item input[type="checkbox"]:checked').forEach(cb => {
       targetLanguages.push(cb.value);
     });
-    
-    if (!videoUrl) {
-      output.textContent = 'Please provide a video URL or path.';
-      return;
-    }
     
     if (!sourceLanguage) {
       output.textContent = 'Please select a source language.';
@@ -210,19 +228,53 @@ document.addEventListener('DOMContentLoaded', function() {
     dubbingBtn.textContent = 'Processing...';
     
     try {
-      const body = {
-        videoUrl,
-        sourceLanguage,
-        targetLanguages
-      };
+      let response;
       
-      const res = await fetch(SERVER + '/api/dubbing/single', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
+      if (mode === 'url') {
+        // URL/Path mode
+        const videoUrl = document.getElementById('videoUrl').value.trim();
+        
+        if (!videoUrl) {
+          output.textContent = 'Please provide a video URL or path.';
+          dubbingBtn.disabled = false;
+          dubbingBtn.textContent = 'POST /api/dubbing/single';
+          return;
+        }
+        
+        const body = {
+          videoUrl,
+          sourceLanguage,
+          targetLanguages
+        };
+        
+        response = await fetch(SERVER + '/api/dubbing/single', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+      } else {
+        // Upload mode
+        const videoFile = document.getElementById('videoFile').files[0];
+        
+        if (!videoFile) {
+          output.textContent = 'Please select a video file.';
+          dubbingBtn.disabled = false;
+          dubbingBtn.textContent = 'POST /api/dubbing/single';
+          return;
+        }
+        
+        const formData = new FormData();
+        formData.append('video', videoFile);
+        formData.append('sourceLanguage', sourceLanguage);
+        formData.append('targetLanguages', JSON.stringify(targetLanguages));
+        
+        response = await fetch(SERVER + '/api/dubbing/upload', {
+          method: 'POST',
+          body: formData
+        });
+      }
       
-      const result = await res.json();
+      const result = await response.json();
       output.textContent = JSON.stringify(result, null, 2);
       
       if (result.success && result.languages) {
