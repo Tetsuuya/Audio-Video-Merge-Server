@@ -6,7 +6,7 @@ A Node.js server for automated video dubbing with transcription, translation, an
 
 - 🎬 **Full Dubbing Pipeline** - Extract audio → Transcribe → Translate → Generate Speech → Merge
 - 🌍 **Multi-language Support** - Process multiple target languages in one request
-- ☁️ **Cloud Storage** - Automatic upload to Cloudinary (10GB free)
+- ☁️ **Cloud Storage** - Automatic upload to Cloudflare R2 (10GB free)
 - 🗣️ **High-Quality TTS** - Kokoro-82M via Replicate
 - 📝 **99+ Languages** - AssemblyAI transcription supports 99+ languages
 - 🔄 **Automatic Translation** - DeepL API integration
@@ -60,14 +60,14 @@ Check if the server is running.
 
 **POST** `/api/dubbing/single`
 
-Dub a video into one target language.
+Dub a video into one or more target languages using video URL or file path.
 
 **Request Body:**
 ```json
 {
   "videoUrl": "https://example.com/video.mp4",
   "sourceLanguage": "es",
-  "targetLanguage": "en"
+  "targetLanguages": ["en", "fr"]
 }
 ```
 
@@ -86,77 +86,73 @@ Dub a video into one target language.
       "success": true,
       "transcript": "Hola. ¿Cómo estás?...",
       "translation": "Hello. How are you? Fine, thanks...",
-      "video": "https://res.cloudinary.com/.../dubbed_es_to_en_xxx.mp4",
-      "processingTime": "45.23s"
-    }
-  },
-  "totalProcessingTime": "45.23s"
-}
-```
-
----
-
-### 3. Dubbing API - Multiple Languages
-
-**POST** `/api/dubbing/single`
-
-Dub a video into multiple target languages simultaneously.
-
-**Request Body:**
-```json
-{
-  "videoUrl": "https://example.com/video.mp4",
-  "sourceLanguage": "es",
-  "targetLanguages": ["en", "fr", "it"]
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "jobId": "job_1783512345678",
-  "sourceLanguage": "es",
-  "original": {
-    "video": "https://example.com/video.mp4",
-    "transcript": "Hola. ¿Cómo estás? Bien, gracias..."
-  },
-  "languages": {
-    "en": {
-      "success": true,
-      "transcript": "Hola. ¿Cómo estás?...",
-      "translation": "Hello. How are you? Fine, thanks...",
-      "video": "https://res.cloudinary.com/.../dubbed_es_to_en_xxx.mp4",
+      "video": "https://pub-xxxxx.r2.dev/job_xxx_en.mp4",
       "processingTime": "45.23s"
     },
     "fr": {
       "success": true,
       "transcript": "Hola. ¿Cómo estás?...",
       "translation": "Bonjour. Comment vas-tu? Bien, merci...",
-      "video": "https://res.cloudinary.com/.../dubbed_es_to_fr_xxx.mp4",
+      "video": "https://pub-xxxxx.r2.dev/job_xxx_fr.mp4",
       "processingTime": "43.56s"
-    },
-    "it": {
-      "success": true,
-      "transcript": "Hola. ¿Cómo estás?...",
-      "translation": "Ciao. Come stai? Bene, grazie...",
-      "video": "https://res.cloudinary.com/.../dubbed_es_to_it_xxx.mp4",
-      "processingTime": "44.12s"
     }
   },
-  "totalProcessingTime": "132.91s"
+  "totalProcessingTime": "88.79s"
 }
 ```
 
 ---
 
-### 4. Legacy Endpoints
+### 3. Dubbing API - File Upload
 
-**POST** `/test/merge-one` - Merge audio and video (legacy)  
+**POST** `/api/dubbing/upload`
+
+Upload a video file and process dubbing.
+
+**Content-Type:** `multipart/form-data`
+
+**Form Fields:**
+- `video` (file) - Video file (max 500MB)
+- `sourceLanguage` (text) - Source language code (e.g., "es")
+- `targetLanguages` (text) - JSON array of target languages (e.g., `["en", "fr"]`)
+
+**Example (cURL):**
+```bash
+curl -X POST http://localhost:8080/api/dubbing/upload \
+  -F "video=@/path/to/video.mp4" \
+  -F "sourceLanguage=es" \
+  -F 'targetLanguages=["en","fr"]'
+```
+
+**Response:** Same structure as `/api/dubbing/single`
+
+---
+
+### 4. Web Interface - Dubbing Test
+
+**GET** `/dubbing.html`
+
+Interactive web interface for testing the dubbing API.
+
+**Features:**
+- Upload video file or provide URL/path
+- Select source language
+- Select multiple target languages
+- View real-time processing status
+- Download dubbed videos
+
+**Access:** `http://localhost:8080/dubbing.html` or `https://your-app.onrender.com/dubbing.html`
+
+---
+
+### 5. Legacy Endpoints
+
+**POST** `/test/merge-one` - Merge single audio+video (legacy)  
 **POST** `/test/merge-multiple` - Merge multiple audio tracks (legacy)  
-**POST** `/merge` - Production merge endpoint (legacy)
+**POST** `/merge` - Production merge endpoint (legacy)  
+**GET** `/merge.html` - Merge test interface (legacy)
 
-See full documentation in sections below.
+See sections below for legacy endpoint documentation.
 
 ---
 
@@ -202,10 +198,12 @@ ASSEMBLYAI_API_KEY=your_assemblyai_key
 # DeepL (Translation)
 DEEPL_API_KEY=your_deepl_key
 
-# Cloudinary (Storage)
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
+# Cloudflare R2 (Storage)
+R2_ACCOUNT_ID=your_account_id
+R2_ACCESS_KEY_ID=your_access_key_id
+R2_SECRET_ACCESS_KEY=your_secret_access_key
+R2_BUCKET_NAME=dubbing-videos
+R2_PUBLIC_URL=https://pub-xxxxx.r2.dev
 ```
 
 ### Get API Keys
@@ -213,13 +211,40 @@ CLOUDINARY_API_SECRET=your_api_secret
 1. **Replicate**: https://replicate.com/ (Free tier available)
 2. **AssemblyAI**: https://www.assemblyai.com/ (Free tier: 5 hours/month)
 3. **DeepL**: https://www.deepl.com/pro-api (Free tier: 500k chars/month)
-4. **Cloudinary**: https://cloudinary.com/ (Free tier: 10GB storage)
+4. **Cloudflare R2**: https://dash.cloudflare.com/r2 (Free tier: 10GB storage)
+
+### Cloudflare R2 Setup
+
+1. Go to https://dash.cloudflare.com/ → R2
+2. Create bucket: `dubbing-videos`
+3. Enable public access (Settings → Public Development URL → Enable)
+4. Create API token with Read & Write permissions
+5. Copy credentials: Account ID, Access Key ID, Secret Access Key, Public URL
 
 ---
 
 ## Testing
 
-### Postman Example - Single Language
+### Web Interface (Recommended)
+
+**Dubbing Interface:** `http://localhost:8080/dubbing.html`
+
+The easiest way to test the API:
+1. Open the interface in your browser
+2. Choose between "Video URL/Path" or "Upload Video"
+3. Select source language (e.g., "es")
+4. Select target language(s) (e.g., "en", "fr")
+5. Click "Start Dubbing"
+6. View real-time processing status
+7. Download dubbed videos when complete
+
+**Legacy Merge Interface:** `http://localhost:8080/merge.html`
+
+---
+
+### Postman / API Testing
+
+#### Single Target Language
 
 ```
 POST http://localhost:8080/api/dubbing/single
@@ -232,7 +257,7 @@ Content-Type: application/json
 }
 ```
 
-### Postman Example - Multiple Languages
+#### Multiple Target Languages
 
 ```
 POST http://localhost:8080/api/dubbing/single
@@ -245,7 +270,13 @@ Content-Type: application/json
 }
 ```
 
-### cURL Example
+**Note:** Both `targetLanguage` (string) and `targetLanguages` (array) are supported.
+
+---
+
+### cURL Examples
+
+#### URL-based Video
 
 ```bash
 curl -X POST http://localhost:8080/api/dubbing/single \
@@ -257,7 +288,43 @@ curl -X POST http://localhost:8080/api/dubbing/single \
   }'
 ```
 
-**Note:** Set timeout to 120 seconds minimum as processing takes 30-60s per language.
+#### File Upload
+
+```bash
+curl -X POST http://localhost:8080/api/dubbing/upload \
+  -F "video=@/path/to/video.mp4" \
+  -F "sourceLanguage=es" \
+  -F 'targetLanguages=["en","fr"]'
+```
+
+**Windows PowerShell:**
+```powershell
+curl.exe -X POST http://localhost:8080/api/dubbing/upload `
+  -F "video=@C:/Users/YourName/Downloads/video.mp4" `
+  -F "sourceLanguage=es" `
+  -F "targetLanguages=[`"en`",`"fr`"]"
+```
+
+---
+
+### Important Notes
+
+- **Timeout:** Set HTTP timeout to **5 minutes minimum**
+  - Processing takes ~30-60s per target language
+  - TTS is the bottleneck (90% of processing time)
+  - Example: 3 languages = 90-180 seconds total
+  
+- **File Size:** Upload limit is 500MB per video
+
+- **Processing Time Breakdown:**
+  - Audio Extraction: <1s
+  - Transcription: 5-10s
+  - Translation: <1s
+  - TTS (per language): 30-60s ⚠️ slowest step
+  - Video Merge: <1s
+  - R2 Upload: 1-3s
+
+- **Output Storage:** All dubbed videos automatically upload to Cloudflare R2 and return public URLs
 
 ---
 
@@ -268,8 +335,8 @@ curl -X POST http://localhost:8080/api/dubbing/single \
 3. **Translation** - Translate text to target language(s) using DeepL
 4. **Text-to-Speech** - Generate dubbed audio using Kokoro TTS (Replicate)
 5. **Merge** - Merge new audio with original video using FFmpeg
-6. **Upload** - Upload final video to Cloudinary
-7. **Response** - Return Cloudinary URL for download
+6. **Upload** - Upload final video to Cloudflare R2
+7. **Response** - Return R2 public URL for download
 
 ---
 
@@ -283,14 +350,65 @@ curl -X POST http://localhost:8080/api/dubbing/single \
 4. Settings:
    - **Build Command**: `npm install`
    - **Start Command**: `npm start`
-5. Add all environment variables from `.env`
+   - **Instance Type**: Standard or higher (for FFmpeg processing)
+5. Add all environment variables from `.env`:
+   - `REPLICATE_API_TOKEN`
+   - `KOKORO_MODEL`
+   - `KOKORO_DEFAULT_VOICE`
+   - `ASSEMBLYAI_API_KEY`
+   - `DEEPL_API_KEY`
+   - `R2_ACCOUNT_ID`
+   - `R2_ACCESS_KEY_ID`
+   - `R2_SECRET_ACCESS_KEY`
+   - `R2_BUCKET_NAME`
+   - `R2_PUBLIC_URL`
+   - `PORT` (usually auto-set by Render)
+   - `SERVER_URL` (set to your Render URL, e.g., `https://your-app.onrender.com`)
 6. Deploy
 
-### Production URL
+### Production URLs
 
-After deployment, your API will be available at:
+After deployment, your APIs will be available at:
+
+**Dubbing API:**
 ```
-https://your-app.onrender.com/api/dubbing/single
+POST https://your-app.onrender.com/api/dubbing/single
+POST https://your-app.onrender.com/api/dubbing/upload
+```
+
+**Web Interfaces:**
+```
+https://your-app.onrender.com/dubbing.html
+https://your-app.onrender.com/merge.html
+```
+
+**Health Check:**
+```
+GET https://your-app.onrender.com/health
+```
+
+### Production Example
+
+```bash
+curl -X POST https://your-app.onrender.com/api/dubbing/upload \
+  -F "video=@video.mp4" \
+  -F "sourceLanguage=es" \
+  -F 'targetLanguages=["en","fr"]'
+```
+
+Response will include R2 public URLs:
+```json
+{
+  "success": true,
+  "languages": {
+    "en": {
+      "video": "https://pub-xxxxx.r2.dev/job_xxx_en.mp4"
+    },
+    "fr": {
+      "video": "https://pub-xxxxx.r2.dev/job_xxx_fr.mp4"
+    }
+  }
+}
 ```
 
 ---
@@ -543,95 +661,11 @@ ffmpeg -i <video> -i <audio> -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 -shortest 
 - 🔊 Universal audio compatibility (AAC)
 - 🎯 Perfect audio/video sync
 
-## Testing
+---
 
-### Web Interface
+## Legacy Endpoints (Merge-Only)
 
-Open `http://localhost:8080/test.html` for an interactive testing interface.
-
-Or use the simpler version: `http://localhost:8080/simple-test.html`
-
-### Postman
-
-Import the included Postman collection or test manually:
-
-**Test single merge with file paths:**
-```json
-POST http://localhost:8080/test/merge-one
-Content-Type: application/json
-
-{
-  "videoPath": "C:\\Users\\YourName\\Downloads\\video.mp4",
-  "audioPath": "C:\\Users\\YourName\\Downloads\\audio.mp3"
-}
-```
-
-**Test multiple merges with file paths:**
-```json
-POST http://localhost:8080/test/merge-multiple
-Content-Type: application/json
-
-{
-  "videoPath": "C:\\Users\\YourName\\Downloads\\video.mp4",
-  "audioTracks": [
-    {
-      "language": "es-ES",
-      "audioPath": "C:\\Users\\YourName\\Downloads\\spanish.mp3"
-    },
-    {
-      "language": "fr-FR",
-      "audioPath": "C:\\Users\\YourName\\Downloads\\french.mp3"
-    }
-  ]
-}
-```
-
-**Test with file upload:**
-```
-POST http://localhost:8080/test/merge-one-upload
-Content-Type: multipart/form-data
-
-video: <select file>
-audio: <select file>
-```
-
-**Test multiple uploads:**
-```
-POST http://localhost:8080/test/merge-multiple-upload
-Content-Type: multipart/form-data
-
-video: <select file>
-audios: <select multiple files>
-languages: ["es-ES","fr-FR","en-US"]
-```
-
-### Node.js Test Script
-
-```bash
-# Edit paths in test-merge-simple.js
-node test-merge-simple.js
-```
-
-## Configuration
-
-### Environment Variables
-
-Create a `.env` file:
-
-```env
-# Server Configuration
-PORT=8080
-NODE_ENV=development
-
-# Authentication (required for /merge endpoint)
-CUSTOM_DUBBING_SECRET=your-secret-here
-
-# Server URL for download URLs
-SERVER_URL=http://localhost:8080
-
-# Storage (for future cloud storage integration)
-STORAGE_TYPE=local
-```
+These endpoints provide basic audio/video merging without dubbing pipeline.
 
 ### Duration Mismatch Handling
 
@@ -677,27 +711,40 @@ This ensures perfect synchronization without quality loss.
 ```
 Backend/
 ├── src/
-│   ├── middleware/
-│   │   └── auth.js           # Authentication middleware
-│   ├── routes/
-│   │   ├── health.js         # Health check endpoint
-│   │   ├── merge.js          # Production merge endpoint
-│   │   └── testMerge.js      # Test endpoints
-│   ├── services/
-│   │   ├── ffmpegService.js  # FFmpeg merge logic
-│   │   ├── downloadService.js
-│   │   ├── storageService.js
-│   │   └── webhookService.js
-│   └── utils/
-│       └── cleanup.js
+│   ├── dubbing-pipeline/
+│   │   ├── routes/
+│   │   │   └── dubbing.js         # Main dubbing API routes
+│   │   └── services/
+│   │       ├── audioExtractionService.js
+│   │       ├── transcriptionService.js
+│   │       ├── translationService.js
+│   │       └── ttsService.js
+│   ├── merge-only/
+│   │   ├── middleware/
+│   │   │   └── auth.js            # Authentication middleware
+│   │   ├── routes/
+│   │   │   ├── health.js          # Health check endpoint
+│   │   │   ├── merge.js           # Production merge endpoint
+│   │   │   └── testMerge.js       # Test/legacy endpoints
+│   │   └── services/
+│   │       ├── ffmpegService.js   # FFmpeg merge logic
+│   │       ├── downloadService.js
+│   │       ├── storageService.js
+│   │       ├── video.js
+│   │       └── webhookService.js
+│   ├── shared/
+│   │   ├── services/
+│   │   │   └── r2Service.js       # Cloudflare R2 storage
+│   │   └── utils/
+│   │       └── cleanup.js         # Auto cleanup service
+│   └── config/
+│       └── voices.js              # TTS voice configuration
 ├── public/
-│   ├── output/               # Merged video outputs
-│   ├── test.html            # Full test interface
-│   └── simple-test.html     # Simple test interface
-├── temp/                     # Temporary upload files
-├── storage/                  # Local storage (if not using cloud)
-├── test/
-│   └── fakeWebhookReceiver.js
+│   ├── output/                    # Merged video outputs (temp)
+│   ├── dubbing.html              # Dubbing test interface
+│   └── merge.html                # Merge test interface (legacy)
+├── temp/                          # Temporary files (auto-cleaned)
+├── .env
 ├── .env.example
 ├── .gitignore
 ├── Dockerfile
@@ -709,28 +756,24 @@ Backend/
 
 ## Deployment
 
-### Railway
+### Other Deployment Platforms
 
-1. Push to GitHub
-2. Connect repository to Railway
-3. Add environment variables
-4. Deploy
+The included Dockerfile works with any platform supporting Docker:
 
-Railway includes FFmpeg in base images automatically.
+- **Heroku**: Uses buildpacks, FFmpeg included
+- **DigitalOcean App Platform**: Supports Dockerfile
+- **AWS ECS / Fargate**: Deploy container directly
+- **Google Cloud Run**: Serverless container deployment
+- **Azure Container Instances**: Quick container hosting
+- **Railway**: Simple deployment with GitHub integration
 
-### Other Platforms
-
-Use the included Dockerfile for any platform supporting Docker:
-
-- Heroku
-- DigitalOcean App Platform
-- AWS ECS
-- Google Cloud Run
-- Azure Container Instances
+**Note:** All platforms must support FFmpeg. The Dockerfile includes FFmpeg installation.
 
 ## Troubleshooting
 
-### "ffmpeg is not recognized"
+### Dubbing API Issues
+
+**"ffmpeg is not recognized"**
 
 Install FFmpeg and ensure it's in your PATH:
 ```bash
@@ -739,24 +782,57 @@ ffmpeg -version
 
 If installed but not recognized, restart your terminal.
 
-### "Input file not found"
+**"Input file not found"**
 
 - Use absolute paths, not relative paths
 - On Windows, use forward slashes: `C:/path/to/file.mp4`
 - Or escaped backslashes: `C:\\path\\to\\file.mp4`
 
-### Merge fails with "Command failed"
+**"Request timeout" / "504 Gateway Timeout"**
+
+- Increase HTTP client timeout to 5+ minutes
+- TTS processing takes 30-60s per language
+- Example: 3 languages = 90-180 seconds minimum
+
+**"AssemblyAI transcription failed"**
+
+- Check `ASSEMBLYAI_API_KEY` is valid
+- Verify you haven't exceeded free tier (5 hours/month)
+- Check audio file is valid format (MP3, WAV, etc.)
+
+**"DeepL translation failed"**
+
+- Check `DEEPL_API_KEY` is valid (must end with `:fx` for free tier)
+- Verify character limit not exceeded (500k/month free)
+- Ensure source/target language combination is supported
+
+**"Replicate TTS failed"**
+
+- Check `REPLICATE_API_TOKEN` is valid
+- Verify Kokoro model name: `alphanumericuser/kokoro-82m`
+- Check target language is supported by Kokoro
+
+**"R2 upload failed"**
+
+- Verify all R2 credentials in `.env` are correct
+- Check bucket name matches: `R2_BUCKET_NAME=dubbing-videos`
+- Ensure bucket has public access enabled
+- Verify R2 public URL is correct
+
+### Legacy Merge Issues
+
+**Merge fails with "Command failed"**
 
 - Verify FFmpeg is installed: `ffmpeg -version`
 - Check input files are valid video/audio formats
 - Ensure files aren't corrupted
 
-### Output plays but audio is wrong
+**Output plays but audio is wrong**
 
 - Verify the `-map` parameters in ffmpegService.js
 - Check that audio file is in a supported format (MP3, WAV, AAC)
 
-### Duration mismatch warning
+**Duration mismatch warning**
 
 This is informational, not an error. The output will be trimmed to the shortest input duration.
 
