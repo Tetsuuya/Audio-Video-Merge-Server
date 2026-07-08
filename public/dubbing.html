@@ -187,7 +187,8 @@
 </div>
 
 <script>
-const SERVER = 'http://localhost:8080';
+// Dynamically detect server URL (works in both local and production)
+const SERVER = window.location.origin;
 const output = document.getElementById('output');
 const videoLinks = document.getElementById('videoLinks');
 
