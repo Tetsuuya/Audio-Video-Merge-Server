@@ -60,7 +60,7 @@ async function cleanDirectory(dirPath, maxAgeMs = MAX_AGE_MS) {
         if (fileAge > maxAgeMs) {
           await fs.unlink(filePath);
           deleted++;
-          console.log(`🗑️  Deleted old file: ${file} (age: ${(fileAge / 1000 / 60 / 60).toFixed(1)}h)`);
+          console.log(`Deleted old file: ${file} (age: ${(fileAge / 1000 / 60 / 60).toFixed(1)}h)`);
         }
       } catch (err) {
         console.error(`Failed to delete ${file}:`, err.message);
@@ -80,7 +80,7 @@ async function cleanDirectory(dirPath, maxAgeMs = MAX_AGE_MS) {
  * @returns {Promise<{deleted: number, errors: number}>}
  */
 async function cleanAll() {
-  console.log(`\n🧹 Starting cleanup (max age: ${MAX_AGE_HOURS}h)...`);
+  console.log(`\nStarting cleanup (max age: ${MAX_AGE_HOURS}h)...`);
 
   const tempDir = path.join(process.cwd(), 'temp');
   const outputDir = path.join(process.cwd(), 'public', 'output');
@@ -91,7 +91,7 @@ async function cleanAll() {
   const totalDeleted = tempResults.deleted + outputResults.deleted;
   const totalErrors = tempResults.errors + outputResults.errors;
 
-  console.log(`✓ Cleanup complete: ${totalDeleted} files deleted, ${totalErrors} errors\n`);
+  console.log(`Cleanup complete: ${totalDeleted} files deleted, ${totalErrors} errors\n`);
 
   return { deleted: totalDeleted, errors: totalErrors };
 }
@@ -103,7 +103,7 @@ async function cleanAll() {
 function startAutoCleanup(intervalHours = CLEANUP_INTERVAL_HOURS) {
   const intervalMs = intervalHours * 60 * 60 * 1000;
 
-  console.log(`🔄 Auto-cleanup enabled (every ${intervalHours}h, max age: ${MAX_AGE_HOURS}h)`);
+  console.log(`Auto-cleanup enabled (every ${intervalHours}h, max age: ${MAX_AGE_HOURS}h)`);
 
   // Run immediately on start
   cleanAll();

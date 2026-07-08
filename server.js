@@ -51,25 +51,25 @@ app.use((err, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`\n🚀 Dubbing Server running on port ${PORT}`);
-  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  console.log(`📍 Merge-Only API:`);
+  console.log(`\nDubbing Server running on port ${PORT}`);
+  console.log(`========================================`);
+  console.log(`Merge-Only API:`);
   console.log(`   GET  http://localhost:${PORT}/health`);
   console.log(`   POST http://localhost:${PORT}/test/merge-one`);
   console.log(`   POST http://localhost:${PORT}/test/merge-multiple`);
   console.log(`   POST http://localhost:${PORT}/merge (production)`);
-  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  console.log(`🎬 Full Dubbing Pipeline API:`);
+  console.log(`========================================`);
+  console.log(`Full Dubbing Pipeline API:`);
   console.log(`   POST http://localhost:${PORT}/api/dubbing/single`);
   console.log(`   POST http://localhost:${PORT}/api/dubbing/multiple`);
-  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  console.log(`🌐 Test Interface: http://localhost:${PORT}/test.html`);
-  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+  console.log(`========================================`);
+  console.log(`Test Interface: http://localhost:${PORT}/test.html`);
+  console.log(`========================================\n`);
   
   // Start automatic cleanup if enabled
   if (AUTO_CLEANUP) {
     startAutoCleanup();
   } else {
-    console.log('⚠️  Auto-cleanup disabled. Run "npm run cleanup" manually.');
+    console.log('Auto-cleanup disabled. Run "npm run cleanup" manually.');
   }
 });
