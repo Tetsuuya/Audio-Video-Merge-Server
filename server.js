@@ -63,7 +63,9 @@ app.listen(PORT, () => {
   console.log(`   POST http://localhost:${PORT}/api/dubbing/single`);
   console.log(`   POST http://localhost:${PORT}/api/dubbing/multiple`);
   console.log(`========================================`);
-  console.log(`Test Interface: http://localhost:${PORT}/test.html`);
+  console.log(`Test Interfaces:`);
+  console.log(`   Dubbing: http://localhost:${PORT}/dubbing.html`);
+  console.log(`   Merge: http://localhost:${PORT}/merge.html`);
   console.log(`========================================\n`);
   
   // Start automatic cleanup if enabled

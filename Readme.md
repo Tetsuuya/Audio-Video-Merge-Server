@@ -1,40 +1,35 @@
-# Audio-Video Merge Server
+# Video Dubbing API
 
-A standalone Node.js server for merging audio tracks with video files using FFmpeg. Built for dubbing pipelines where videos need to be paired with dubbed audio in multiple languages.
+A Node.js server for automated video dubbing with transcription, translation, and text-to-speech. Process videos in multiple languages simultaneously with cloud storage integration.
 
 ## Features
 
-- 🎬 **Audio/Video Merging** - Replace video audio with dubbed audio tracks
-- 🌍 **Multi-language Support** - Process up to 50 audio tracks in one request
-- ⚡ **Fast Processing** - Uses FFmpeg with video stream copy (no re-encoding)
-- 📦 **Batch Processing** - Merge multiple languages simultaneously
-- 🔒 **Secure** - Authentication via custom secret header
-- 📦 **Docker Ready** - Includes Dockerfile with FFmpeg pre-installed
-- 🧪 **Test Endpoints** - Easy testing with local files or uploads
-- 🧹 **Auto Cleanup** - Automatic removal of old files
+- 🎬 **Full Dubbing Pipeline** - Extract audio → Transcribe → Translate → Generate Speech → Merge
+- 🌍 **Multi-language Support** - Process multiple target languages in one request
+- ☁️ **Cloud Storage** - Automatic upload to Cloudinary (10GB free)
+- 🗣️ **High-Quality TTS** - Kokoro-82M via Replicate
+- 📝 **99+ Languages** - AssemblyAI transcription supports 99+ languages
+- 🔄 **Automatic Translation** - DeepL API integration
+- ⚡ **Fast Processing** - 30-60 seconds per video
+- 🧹 **Auto Cleanup** - Automatic removal of temporary files
 
 ## Quick Start
 
 ### Prerequisites
 
 - Node.js 14+
-- FFmpeg installed (see [Installation](#ffmpeg-installation))
+- FFmpeg installed
 
 ### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/Tetsuuya/Audio-Video-Merge-Server.git
-cd Audio-Video-Merge-Server
-
 # Install dependencies
 npm install
 
 # Copy environment file
 cp .env.example .env
 
-# Edit .env with your configuration
-# Required: CUSTOM_DUBBING_SECRET
+# Edit .env with your API keys (see Configuration section)
 
 # Start the server
 npm start
@@ -42,48 +37,9 @@ npm start
 
 Server runs on `http://localhost:8080`
 
-### Docker Installation
-
-```bash
-# Build and run with Docker Compose
-docker-compose up
-
-# Or build manually
-docker build -t merge-server .
-docker run -p 8080:8080 --env-file .env merge-server
-```
-
-Docker automatically includes FFmpeg, no separate installation needed.
-
-## FFmpeg Installation
-
-### Windows
-```powershell
-# Using winget
-winget install "Gyan.FFmpeg"
-
-# Using Chocolatey
-choco install ffmpeg
-```
-
-### macOS
-```bash
-brew install ffmpeg
-```
-
-### Linux
-```bash
-sudo apt install ffmpeg
-```
-
-### Verify Installation
-```bash
-ffmpeg -version
-```
-
 ## API Endpoints
 
-### Health Check
+### 1. Health Check
 
 **GET** `/health`
 
@@ -96,6 +52,245 @@ Check if the server is running.
   "timestamp": "2024-01-15T10:30:00.000Z",
   "uptime": 123.45
 }
+```
+
+---
+
+### 2. Dubbing API - Single Language
+
+**POST** `/api/dubbing/single`
+
+Dub a video into one target language.
+
+**Request Body:**
+```json
+{
+  "videoUrl": "https://example.com/video.mp4",
+  "sourceLanguage": "es",
+  "targetLanguage": "en"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "jobId": "job_1783512345678",
+  "sourceLanguage": "es",
+  "original": {
+    "video": "https://example.com/video.mp4",
+    "transcript": "Hola. ¿Cómo estás? Bien, gracias..."
+  },
+  "languages": {
+    "en": {
+      "success": true,
+      "transcript": "Hola. ¿Cómo estás?...",
+      "translation": "Hello. How are you? Fine, thanks...",
+      "video": "https://res.cloudinary.com/.../dubbed_es_to_en_xxx.mp4",
+      "processingTime": "45.23s"
+    }
+  },
+  "totalProcessingTime": "45.23s"
+}
+```
+
+---
+
+### 3. Dubbing API - Multiple Languages
+
+**POST** `/api/dubbing/single`
+
+Dub a video into multiple target languages simultaneously.
+
+**Request Body:**
+```json
+{
+  "videoUrl": "https://example.com/video.mp4",
+  "sourceLanguage": "es",
+  "targetLanguages": ["en", "fr", "it"]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "jobId": "job_1783512345678",
+  "sourceLanguage": "es",
+  "original": {
+    "video": "https://example.com/video.mp4",
+    "transcript": "Hola. ¿Cómo estás? Bien, gracias..."
+  },
+  "languages": {
+    "en": {
+      "success": true,
+      "transcript": "Hola. ¿Cómo estás?...",
+      "translation": "Hello. How are you? Fine, thanks...",
+      "video": "https://res.cloudinary.com/.../dubbed_es_to_en_xxx.mp4",
+      "processingTime": "45.23s"
+    },
+    "fr": {
+      "success": true,
+      "transcript": "Hola. ¿Cómo estás?...",
+      "translation": "Bonjour. Comment vas-tu? Bien, merci...",
+      "video": "https://res.cloudinary.com/.../dubbed_es_to_fr_xxx.mp4",
+      "processingTime": "43.56s"
+    },
+    "it": {
+      "success": true,
+      "transcript": "Hola. ¿Cómo estás?...",
+      "translation": "Ciao. Come stai? Bene, grazie...",
+      "video": "https://res.cloudinary.com/.../dubbed_es_to_it_xxx.mp4",
+      "processingTime": "44.12s"
+    }
+  },
+  "totalProcessingTime": "132.91s"
+}
+```
+
+---
+
+### 4. Legacy Endpoints
+
+**POST** `/test/merge-one` - Merge audio and video (legacy)  
+**POST** `/test/merge-multiple` - Merge multiple audio tracks (legacy)  
+**POST** `/merge` - Production merge endpoint (legacy)
+
+See full documentation in sections below.
+
+---
+
+## Supported Languages
+
+### TTS Languages (Kokoro-82M)
+- `en` - English
+- `es` - Spanish
+- `fr` - French
+- `it` - Italian
+- `pt` - Portuguese
+- `hi` - Hindi
+- `ja` - Japanese
+- `zh` - Chinese
+
+### Transcription Languages (AssemblyAI)
+99+ languages supported including all major languages.
+
+### Translation Languages (DeepL)
+30+ languages supported including all major European and Asian languages.
+
+---
+
+## Configuration
+
+### Required Environment Variables
+
+Create a `.env` file with the following:
+
+```env
+# Server
+PORT=8080
+SERVER_URL=http://localhost:8080
+
+# Replicate API (Kokoro TTS)
+REPLICATE_API_TOKEN=your_replicate_token
+KOKORO_MODEL=alphanumericuser/kokoro-82m
+KOKORO_DEFAULT_VOICE=af_heart
+
+# AssemblyAI (Transcription)
+ASSEMBLYAI_API_KEY=your_assemblyai_key
+
+# DeepL (Translation)
+DEEPL_API_KEY=your_deepl_key
+
+# Cloudinary (Storage)
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+```
+
+### Get API Keys
+
+1. **Replicate**: https://replicate.com/ (Free tier available)
+2. **AssemblyAI**: https://www.assemblyai.com/ (Free tier: 5 hours/month)
+3. **DeepL**: https://www.deepl.com/pro-api (Free tier: 500k chars/month)
+4. **Cloudinary**: https://cloudinary.com/ (Free tier: 10GB storage)
+
+---
+
+## Testing
+
+### Postman Example - Single Language
+
+```
+POST http://localhost:8080/api/dubbing/single
+Content-Type: application/json
+
+{
+  "videoUrl": "C:/Users/YourName/Downloads/test-spanish.mp4",
+  "sourceLanguage": "es",
+  "targetLanguage": "en"
+}
+```
+
+### Postman Example - Multiple Languages
+
+```
+POST http://localhost:8080/api/dubbing/single
+Content-Type: application/json
+
+{
+  "videoUrl": "https://example.com/video.mp4",
+  "sourceLanguage": "es",
+  "targetLanguages": ["en", "fr", "it"]
+}
+```
+
+### cURL Example
+
+```bash
+curl -X POST http://localhost:8080/api/dubbing/single \
+  -H "Content-Type: application/json" \
+  -d '{
+    "videoUrl": "https://example.com/video.mp4",
+    "sourceLanguage": "es",
+    "targetLanguages": ["en", "fr"]
+  }'
+```
+
+**Note:** Set timeout to 120 seconds minimum as processing takes 30-60s per language.
+
+---
+
+## How It Works
+
+1. **Audio Extraction** - Extract audio from video using FFmpeg
+2. **Transcription** - Transcribe audio to text using AssemblyAI
+3. **Translation** - Translate text to target language(s) using DeepL
+4. **Text-to-Speech** - Generate dubbed audio using Kokoro TTS (Replicate)
+5. **Merge** - Merge new audio with original video using FFmpeg
+6. **Upload** - Upload final video to Cloudinary
+7. **Response** - Return Cloudinary URL for download
+
+---
+
+## Deployment
+
+### Deploy to Render.com
+
+1. Push code to GitHub
+2. Create new Web Service on Render
+3. Connect your repository
+4. Settings:
+   - **Build Command**: `npm install`
+   - **Start Command**: `npm start`
+5. Add all environment variables from `.env`
+6. Deploy
+
+### Production URL
+
+After deployment, your API will be available at:
+```
+https://your-app.onrender.com/api/dubbing/single
 ```
 
 ---

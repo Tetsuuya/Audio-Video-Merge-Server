@@ -1,0 +1,57 @@
+DEPLOYMENT CHECKLIST
+====================
+
+BEFORE DEPLOYING:
+
+1. Test the API locally
+   - POST http://localhost:8080/api/dubbing/single
+   - Verify video uploads to Cloudinary
+   - Check all API keys work
+
+2. Environment Variables Required:
+   - REPLICATE_API_TOKEN
+   - ASSEMBLYAI_API_KEY
+   - DEEPL_API_KEY
+   - CLOUDINARY_CLOUD_NAME
+   - CLOUDINARY_API_KEY
+   - CLOUDINARY_API_SECRET
+   - SERVER_URL (your production URL)
+
+3. Deploy to Render.com:
+   - Create new Web Service
+   - Connect GitHub repo
+   - Build Command: npm install
+   - Start Command: npm start
+   - Add all environment variables
+   - Deploy!
+
+4. After Deployment:
+   - Update SERVER_URL in Render env vars
+   - Test production API
+   - Share API endpoint with client
+
+PRODUCTION ENDPOINT:
+https://your-app.onrender.com/api/dubbing/single
+
+REQUEST FORMAT:
+{
+  "videoUrl": "https://example.com/video.mp4",
+  "sourceLanguage": "es",
+  "targetLanguage": "en"
+}
+
+RESPONSE FORMAT:
+{
+  "success": true,
+  "jobId": "job_xxx",
+  "video": "https://res.cloudinary.com/xxx/video.mp4",
+  "transcript": "...",
+  "translation": "...",
+  "processingTime": "45.23s"
+}
+
+NOTES:
+- Videos stored permanently on Cloudinary (10GB free)
+- Processing takes 30-60 seconds per video
+- Client should set timeout to 120 seconds minimum
+- FFmpeg installed automatically on Render

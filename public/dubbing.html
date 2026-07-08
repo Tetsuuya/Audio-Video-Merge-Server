@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Video Dubbing Test Interface</title>
+<style>
+  body { 
+    margin: 16px; 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  }
+  .layout { display: flex; gap: 24px; }
+  .controls { flex: 1; }
+  .response-col { flex: 1; }
+  .controls hr { margin: 24px 0; }
+  #output { 
+    border: 1px solid #ccc; 
+    padding: 15px; 
+    background: #f5f5f5;
+    white-space: pre-wrap;
+    min-height: 200px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 13px;
+  }
+  #videoLinks {
+    margin-top: 15px;
+    padding: 15px;
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 4px;
+    display: none;
+  }
+  #videoLinks a {
+    color: #007bff;
+    font-weight: bold;
+    font-size: 14px;
+    word-break: break-all;
+    display: block;
+    margin: 8px 0;
+  }
+  button {
+    padding: 8px 16px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  button:hover {
+    background: #0056b3;
+  }
+  button:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+  }
+  input[type="text"], select, textarea {
+    font-size: 13px;
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  .checkbox-group {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .checkbox-item {
+    display: flex;
+    align-items: center;
+  }
+  .checkbox-item input {
+    margin-right: 6px;
+  }
+  .note {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    padding: 12px;
+    border-radius: 4px;
+    margin-top: 15px;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Video Dubbing Test Interface</h1>
+
+<div class="layout">
+
+  <div class="controls">
+
+    <h2>Full Dubbing Pipeline</h2>
+    <p style="font-size: 13px; color: #666;">Transcribe → Translate → Generate Speech → Merge</p>
+
+    <p>
+      <label for="videoUrl">Video URL or Path:</label>
+      <input type="text" id="videoUrl" placeholder="https://example.com/video.mp4 or C:/path/to/video.mp4">
+    </p>
+
+    <p>
+      <label for="sourceLanguage">Source Language:</label>
+      <select id="sourceLanguage">
+        <option value="">Select source language</option>
+        <option value="en">English</option>
+        <option value="es">Spanish</option>
+        <option value="fr">French</option>
+        <option value="it">Italian</option>
+        <option value="pt">Portuguese</option>
+        <option value="hi">Hindi</option>
+        <option value="ja">Japanese</option>
+        <option value="zh">Chinese</option>
+      </select>
+    </p>
+
+    <p>
+      <label>Target Languages (select one or more):</label>
+      <div class="checkbox-group">
+        <div class="checkbox-item">
+          <input type="checkbox" id="lang-en" value="en">
+          <label for="lang-en">English</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="lang-es" value="es">
+          <label for="lang-es">Spanish</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="lang-fr" value="fr">
+          <label for="lang-fr">French</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="lang-it" value="it">
+          <label for="lang-it">Italian</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="lang-pt" value="pt">
+          <label for="lang-pt">Portuguese</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="lang-hi" value="hi">
+          <label for="lang-hi">Hindi</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="lang-ja" value="ja">
+          <label for="lang-ja">Japanese</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="lang-zh" value="zh">
+          <label for="lang-zh">Chinese</label>
+        </div>
+      </div>
+    </p>
+
+    <button type="button" id="dubbingBtn">POST /api/dubbing/single</button>
+
+    <div class="note">
+      <strong>Note:</strong> Processing takes 30-60 seconds per language. Videos are uploaded to Cloudinary.
+    </div>
+
+  </div>
+
+  <div class="response-col">
+    <h3>Response:</h3>
+    <pre id="output">No requests yet...</pre>
+    <div id="videoLinks"></div>
+  </div>
+
+</div>
+
+<script>
+const SERVER = 'http://localhost:8080';
+const output = document.getElementById('output');
+const videoLinks = document.getElementById('videoLinks');
+
+document.addEventListener('DOMContentLoaded', function() {
+  const dubbingBtn = document.getElementById('dubbingBtn');
+  
+  dubbingBtn.addEventListener('click', async function(e) {
+    e.preventDefault();
+    
+    const videoUrl = document.getElementById('videoUrl').value.trim();
+    const sourceLanguage = document.getElementById('sourceLanguage').value;
+    
+    // Get selected target languages
+    const targetLanguages = [];
+    document.querySelectorAll('.checkbox-item input[type="checkbox"]:checked').forEach(cb => {
+      targetLanguages.push(cb.value);
+    });
+    
+    if (!videoUrl) {
+      output.textContent = 'Please provide a video URL or path.';
+      return;
+    }
+    
+    if (!sourceLanguage) {
+      output.textContent = 'Please select a source language.';
+      return;
+    }
+    
+    if (targetLanguages.length === 0) {
+      output.textContent = 'Please select at least one target language.';
+      return;
+    }
+    
+    output.textContent = `Processing: ${sourceLanguage} → ${targetLanguages.join(', ')}...\nThis will take ${targetLanguages.length * 30}-${targetLanguages.length * 60} seconds...`;
+    videoLinks.style.display = 'none';
+    dubbingBtn.disabled = true;
+    dubbingBtn.textContent = 'Processing...';
+    
+    try {
+      const body = {
+        videoUrl,
+        sourceLanguage,
+        targetLanguages
+      };
+      
+      const res = await fetch(SERVER + '/api/dubbing/single', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      
+      const result = await res.json();
+      output.textContent = JSON.stringify(result, null, 2);
+      
+      if (result.success && result.languages) {
+        showVideoLinks(result.languages);
+      }
+    } catch (err) {
+      output.textContent = 'Error: ' + err.message;
+    } finally {
+      dubbingBtn.disabled = false;
+      dubbingBtn.textContent = 'POST /api/dubbing/single';
+    }
+  });
+});
+
+function showVideoLinks(languages) {
+  let html = '<strong>✓ Dubbing Complete!</strong><br><br>';
+  html += '<strong>Download Videos:</strong><br>';
+  
+  for (const [lang, result] of Object.entries(languages)) {
+    if (result.success && result.video) {
+      html += `<a href="${result.video}" target="_blank">${lang.toUpperCase()}: ${result.video}</a>`;
+    } else if (result.error) {
+      html += `<span style="color: #dc3545;">${lang.toUpperCase()}: ${result.error}</span><br>`;
+    }
+  }
+  
+  videoLinks.innerHTML = html;
+  videoLinks.style.display = 'block';
+}
+</script>
+
+</body>
+</html>

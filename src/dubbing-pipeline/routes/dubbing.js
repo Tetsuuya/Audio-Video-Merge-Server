@@ -8,6 +8,10 @@ const { translateText } = require('../services/translationService');
 const { generateSpeech } = require('../services/ttsService');
 const { mergeAudioVideo } = require('../../merge-only/services/ffmpegService');
 const { downloadVideo } = require('../../merge-only/services/downloadService');
+const { uploadVideo } = require('../../shared/services/cloudinaryService');
+
+// Supported languages for Kokoro TTS
+const SUPPORTED_LANGUAGES = ['en', 'es', 'fr', 'it', 'pt', 'hi', 'ja', 'zh'];
 
 router.post('/single', async (req, res) => {
   const startTime = Date.now();
@@ -17,13 +21,33 @@ router.post('/single', async (req, res) => {
   };
   
   try {
-    const { videoUrl, sourceLanguage, targetLanguage } = req.body;
-    if (!videoUrl || !sourceLanguage || !targetLanguage) {
+    const { videoUrl, sourceLanguage, targetLanguages } = req.body;
+    
+    // Support both single targetLanguage and multiple targetLanguages
+    let languages = [];
+    if (targetLanguages && Array.isArray(targetLanguages)) {
+      languages = targetLanguages;
+    } else if (req.body.targetLanguage) {
+      languages = [req.body.targetLanguage];
+    } else {
+      return res.status(400).json({ success: false, error: 'Missing targetLanguage or targetLanguages' });
+    }
+    
+    if (!videoUrl || !sourceLanguage || languages.length === 0) {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
     
+    // Validate languages
+    const unsupportedLangs = languages.filter(lang => !SUPPORTED_LANGUAGES.includes(lang));
+    if (unsupportedLangs.length > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Unsupported languages: ${unsupportedLangs.join(', ')}. Supported: ${SUPPORTED_LANGUAGES.join(', ')}` 
+      });
+    }
+    
     console.log('\nStarting dubbing job:', videoUrl);
-    console.log(`   ${sourceLanguage.toUpperCase()} -> ${targetLanguage.toUpperCase()}`);
+    console.log(`   ${sourceLanguage.toUpperCase()} -> [${languages.map(l => l.toUpperCase()).join(', ')}]`);
     logTime('Job received');
     
     const jobId = 'job_' + Date.now();
@@ -47,34 +71,66 @@ router.post('/single', async (req, res) => {
     const transcript = await transcribeAudio(audioPath, sourceLanguage);
     logTime(`Transcription complete (${transcript.text.length} chars)`);
     
-    logTime('Translating text...');
-    const translation = await translateText(transcript.text, sourceLanguage, targetLanguage);
-    logTime(`Translation complete (${translation.length} chars)`);
+    // Process each target language
+    const results = {};
     
-    logTime('Generating speech (TTS)...');
-    const dubbedAudioPath = await generateSpeech(translation, targetLanguage);
-    logTime('TTS complete');
+    for (const targetLang of languages) {
+      const langStartTime = Date.now();
+      console.log(`\n  Processing ${targetLang.toUpperCase()}...`);
+      
+      try {
+        logTime(`  [${targetLang}] Translating...`);
+        const translation = await translateText(transcript.text, sourceLanguage, targetLang);
+        logTime(`  [${targetLang}] Translation complete`);
+        
+        logTime(`  [${targetLang}] Generating speech...`);
+        const dubbedAudioPath = await generateSpeech(translation, targetLang);
+        logTime(`  [${targetLang}] TTS complete`);
+        
+        logTime(`  [${targetLang}] Merging...`);
+        const outputFileName = `dubbed_${sourceLanguage}_to_${targetLang}_${Date.now()}.mp4`;
+        const outputPath = path.join(process.cwd(), 'public', 'output', outputFileName);
+        await mergeAudioVideo(videoPath, dubbedAudioPath, outputPath);
+        
+        logTime(`  [${targetLang}] Uploading to Cloudinary...`);
+        const cloudinaryUrl = await uploadVideo(outputPath, `${jobId}_${targetLang}`);
+        
+        const langTime = ((Date.now() - langStartTime) / 1000).toFixed(2);
+        logTime(`  [${targetLang}] Complete in ${langTime}s`);
+        
+        results[targetLang] = {
+          success: true,
+          transcript: transcript.text,
+          translation,
+          video: cloudinaryUrl,
+          processingTime: langTime + 's'
+        };
+        
+      } catch (error) {
+        const langTime = ((Date.now() - langStartTime) / 1000).toFixed(2);
+        console.error(`  [${targetLang}] Failed after ${langTime}s:`, error.message);
+        results[targetLang] = {
+          success: false,
+          error: error.message
+        };
+      }
+    }
     
-    logTime('Merging audio with video...');
-    const outputFileName = 'dubbed_' + sourceLanguage + '_to_' + targetLanguage + '_' + Date.now() + '.mp4';
-    const outputPath = path.join(process.cwd(), 'public', 'output', outputFileName);
-    await mergeAudioVideo(videoPath, dubbedAudioPath, outputPath);
-    logTime('Merge complete');
-    
-    const downloadUrl = (process.env.SERVER_URL || 'http://localhost:8080') + '/output/' + outputFileName;
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+    const successCount = Object.values(results).filter(r => r.success).length;
     console.log(`\nJob complete in ${totalTime}s`);
-    console.log(`Download: ${downloadUrl}\n`);
+    console.log(`   Success: ${successCount}/${languages.length}\n`);
     
     res.json({ 
       success: true, 
       jobId, 
-      sourceLanguage, 
-      targetLanguage, 
-      transcript: transcript.text, 
-      translation, 
-      downloadUrl,
-      processingTime: totalTime + 's'
+      sourceLanguage,
+      original: {
+        video: videoUrl,
+        transcript: transcript.text
+      },
+      languages: results,
+      totalProcessingTime: totalTime + 's'
     });
   } catch (error) {
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
