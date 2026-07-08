@@ -36,10 +36,9 @@ app.use('/health', healthRoute);
 app.use('/merge', mergeRoute);
 app.use('/test', testMergeRoute);
 
-// ===== DUBBING PIPELINE API ROUTES (Future) =====
-// Uncomment when dubbing pipeline is ready
-// const dubJobsRoute = require('./src/dubbing-pipeline/routes/dubJobs');
-// app.use('/api/dub-jobs', dubJobsRoute);
+// ===== DUBBING PIPELINE API ROUTES =====
+const dubbingRoute = require('./src/dubbing-pipeline/routes/dubbing');
+app.use('/api/dubbing', dubbingRoute);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -52,13 +51,17 @@ app.use((err, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`\n🚀 Dubbing Merge Server running on port ${PORT}`);
+  console.log(`\n🚀 Dubbing Server running on port ${PORT}`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   console.log(`📍 Merge-Only API:`);
   console.log(`   GET  http://localhost:${PORT}/health`);
   console.log(`   POST http://localhost:${PORT}/test/merge-one`);
   console.log(`   POST http://localhost:${PORT}/test/merge-multiple`);
   console.log(`   POST http://localhost:${PORT}/merge (production)`);
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  console.log(`🎬 Full Dubbing Pipeline API:`);
+  console.log(`   POST http://localhost:${PORT}/api/dubbing/single`);
+  console.log(`   POST http://localhost:${PORT}/api/dubbing/multiple`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   console.log(`🌐 Test Interface: http://localhost:${PORT}/test.html`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
