@@ -31,7 +31,8 @@ const BEST_VOICES_PER_LANGUAGE = {
 const DEFAULT_VOICE = 'af_heart'; // Grade A - fallback for unsupported languages
 
 const SUPPORTED_LANGUAGES = [
-  'en', 'es', 'fr', 'it', 'pt', 'hi', 'ja', 'zh'
+  'en', 'es', 'fr', 'it', 'pt', 'hi'
+  // 'ja', 'zh' - Not working: Replicate deployment missing dependencies (fugashi, tokenizers)
 ];
 
 /**

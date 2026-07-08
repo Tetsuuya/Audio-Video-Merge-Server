@@ -159,14 +159,20 @@ See sections below for legacy endpoint documentation.
 ## Supported Languages
 
 ### TTS Languages (Kokoro-82M)
-- `en` - English
+
+**✅ Fully Supported:**
+- `en` - English (Grade A voice)
 - `es` - Spanish
-- `fr` - French
+- `fr` - French (Grade B-)
 - `it` - Italian
 - `pt` - Portuguese
 - `hi` - Hindi
-- `ja` - Japanese
-- `zh` - Chinese
+
+**⚠️ Not Currently Working:**
+- `ja` - Japanese (Replicate deployment missing `fugashi` dependency)
+- `zh` - Chinese (Replicate deployment missing dependencies)
+
+**Note:** While the Kokoro model technically supports Japanese and Chinese, the current Replicate deployment (`alphanumericuser/kokoro-82m`) is missing required tokenization libraries. Use the 6 working languages above.
 
 ### Transcription Languages (AssemblyAI)
 99+ languages supported including all major languages.
@@ -811,6 +817,7 @@ If installed but not recognized, restart your terminal.
 - Check `REPLICATE_API_TOKEN` is valid
 - Verify Kokoro model name: `alphanumericuser/kokoro-82m`
 - Check target language is supported by Kokoro
+- **Japanese/Chinese not working?** The Replicate deployment is missing dependencies (`fugashi` for ja, tokenizers for zh). Use supported languages: en, es, fr, it, pt, hi
 
 **"R2 upload failed"**
 
