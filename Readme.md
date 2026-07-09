@@ -56,11 +56,11 @@ Check if the server is running.
 
 ---
 
-### 2. Dubbing API - Single Language
+### 2. Submit Dubbing Job (URL)
 
-**POST** `/api/dubbing/single`
+**POST** `/api/dubbing/async/single`
 
-Dub a video into one or more target languages using video URL or file path.
+Submit a dubbing job using a video URL. Returns immediately with a jobId for status tracking.
 
 **Request Body:**
 ```json
@@ -76,6 +76,62 @@ Dub a video into one or more target languages using video URL or file path.
 {
   "success": true,
   "jobId": "job_1783512345678",
+  "status": "pending",
+  "message": "Job queued for processing",
+  "statusUrl": "/api/dubbing/async/status/job_1783512345678",
+  "estimatedTime": "30-60s"
+}
+```
+
+---
+
+### 3. Submit Dubbing Job (Upload)
+
+**POST** `/api/dubbing/async/upload`
+
+Submit a dubbing job with file upload. Returns immediately with a jobId for status tracking.
+
+**Request (multipart/form-data):**
+- `video` (file) - Video file to dub
+- `sourceLanguage` (string) - Source language code
+- `targetLanguages` (JSON array string) - e.g., `["en", "fr"]`
+
+**Response:**
+```json
+{
+  "success": true,
+  "jobId": "job_1783512345678",
+  "status": "pending",
+  "message": "Job queued for processing",
+  "statusUrl": "/api/dubbing/async/status/job_1783512345678",
+  "estimatedTime": "30-60s"
+}
+```
+
+---
+
+### 4. Check Job Status
+
+**GET** `/api/dubbing/async/status/:jobId`
+
+Check the status of a dubbing job. Poll this endpoint to get job updates.
+
+**Response (pending/processing):**
+```json
+{
+  "success": true,
+  "jobId": "job_1783512345678",
+  "status": "processing",
+  "message": "Job is being processed"
+}
+```
+
+**Response (completed):**
+```json
+{
+  "success": true,
+  "jobId": "job_1783512345678",
+  "status": "completed",
   "sourceLanguage": "es",
   "original": {
     "video": "https://example.com/video.mp4",
@@ -122,24 +178,34 @@ curl -X POST http://localhost:8080/api/dubbing/upload \
   -F "video=@/path/to/video.mp4" \
   -F "sourceLanguage=es" \
   -F 'targetLanguages=["en","fr"]'
+}
 ```
 
-**Response:** Same structure as `/api/dubbing/single`
+**Response (failed):**
+```json
+{
+  "success": true,
+  "jobId": "job_1783512345678",
+  "status": "failed",
+  "error": "Transcription failed: Invalid audio format"
+}
+```
 
 ---
 
-### 4. Web Interface - Dubbing Test
+### 5. Web Interface - Dubbing Test
 
 **GET** `/dubbing.html`
 
-Interactive web interface for testing the dubbing API.
+Interactive web interface for testing the dubbing API with async job processing.
 
 **Features:**
 - Upload video file or provide URL/path
 - Select source language
 - Select multiple target languages
-- View real-time processing status
-- Download dubbed videos
+- Automatic status polling every 5 seconds
+- Download dubbed videos when complete
+- Can close page and check status later with jobId
 
 **Access:** `http://localhost:8080/dubbing.html` or `https://your-app.onrender.com/dubbing.html`
 
@@ -235,14 +301,15 @@ R2_PUBLIC_URL=https://pub-xxxxx.r2.dev
 
 **Dubbing Interface:** `http://localhost:8080/dubbing.html`
 
-The easiest way to test the API:
+The easiest way to test the async API:
 1. Open the interface in your browser
 2. Choose between "Video URL/Path" or "Upload Video"
-3. Select source language (e.g., "es")
-4. Select target language(s) (e.g., "en", "fr")
-5. Click "Start Dubbing"
-6. View real-time processing status
+3. Select source language (e.g., "Spanish")
+4. Select target language(s) (e.g., "English", "French")
+5. Click "Submit Dubbing Job"
+6. View jobId and automatic status polling (every 5 seconds)
 7. Download dubbed videos when complete
+8. Can close page and return later - job continues processing
 
 **Legacy Merge Interface:** `http://localhost:8080/merge.html`
 
@@ -250,42 +317,60 @@ The easiest way to test the API:
 
 ### Postman / API Testing
 
-#### Single Target Language
+#### Submit Job with URL
 
 ```
-POST http://localhost:8080/api/dubbing/single
-Content-Type: application/json
-
-{
-  "videoUrl": "C:/Users/YourName/Downloads/test-spanish.mp4",
-  "sourceLanguage": "es",
-  "targetLanguage": "en"
-}
-```
-
-#### Multiple Target Languages
-
-```
-POST http://localhost:8080/api/dubbing/single
+POST http://localhost:8080/api/dubbing/async/single
 Content-Type: application/json
 
 {
   "videoUrl": "https://example.com/video.mp4",
   "sourceLanguage": "es",
-  "targetLanguages": ["en", "fr", "it"]
+  "targetLanguages": ["en", "fr"]
 }
 ```
 
-**Note:** Both `targetLanguage` (string) and `targetLanguages` (array) are supported.
+**Response:**
+```json
+{
+  "success": true,
+  "jobId": "job_1783595904186",
+  "status": "pending",
+  "statusUrl": "/api/dubbing/async/status/job_1783595904186"
+}
+```
+
+#### Check Job Status
+
+```
+GET http://localhost:8080/api/dubbing/async/status/job_1783595904186
+```
+
+**Response (when completed):**
+```json
+{
+  "success": true,
+  "jobId": "job_1783595904186",
+  "status": "completed",
+  "sourceLanguage": "es",
+  "results": {
+    "en": {
+      "success": true,
+      "video": "https://pub-xxxxx.r2.dev/job_xxx_en.mp4",
+      "processingTime": "23.23s"
+    }
+  }
+}
+```
 
 ---
 
 ### cURL Examples
 
-#### URL-based Video
+#### Submit Job (URL)
 
 ```bash
-curl -X POST http://localhost:8080/api/dubbing/single \
+curl -X POST http://localhost:8080/api/dubbing/async/single \
   -H "Content-Type: application/json" \
   -d '{
     "videoUrl": "https://example.com/video.mp4",
@@ -294,10 +379,10 @@ curl -X POST http://localhost:8080/api/dubbing/single \
   }'
 ```
 
-#### File Upload
+#### Submit Job (File Upload)
 
 ```bash
-curl -X POST http://localhost:8080/api/dubbing/upload \
+curl -X POST http://localhost:8080/api/dubbing/async/upload \
   -F "video=@/path/to/video.mp4" \
   -F "sourceLanguage=es" \
   -F 'targetLanguages=["en","fr"]'
@@ -305,10 +390,16 @@ curl -X POST http://localhost:8080/api/dubbing/upload \
 
 **Windows PowerShell:**
 ```powershell
-curl.exe -X POST http://localhost:8080/api/dubbing/upload `
+curl.exe -X POST http://localhost:8080/api/dubbing/async/upload `
   -F "video=@C:/Users/YourName/Downloads/video.mp4" `
   -F "sourceLanguage=es" `
   -F "targetLanguages=[`"en`",`"fr`"]"
+```
+
+#### Check Status
+
+```bash
+curl http://localhost:8080/api/dubbing/async/status/job_1783595904186
 ```
 
 ---
@@ -358,6 +449,7 @@ curl.exe -X POST http://localhost:8080/api/dubbing/upload `
    - **Start Command**: `npm start`
    - **Instance Type**: Standard or higher (for FFmpeg processing)
 5. Add all environment variables from `.env`:
+   - `FIREBASE_CREDENTIALS` - **Copy entire firebase-credentials.json as single-line string**
    - `REPLICATE_API_TOKEN`
    - `KOKORO_MODEL`
    - `KOKORO_DEFAULT_VOICE`
@@ -378,8 +470,9 @@ After deployment, your APIs will be available at:
 
 **Dubbing API:**
 ```
-POST https://your-app.onrender.com/api/dubbing/single
-POST https://your-app.onrender.com/api/dubbing/upload
+POST https://your-app.onrender.com/api/dubbing/async/single
+POST https://your-app.onrender.com/api/dubbing/async/upload
+GET  https://your-app.onrender.com/api/dubbing/async/status/:jobId
 ```
 
 **Web Interfaces:**
@@ -396,17 +489,31 @@ GET https://your-app.onrender.com/health
 ### Production Example
 
 ```bash
-curl -X POST https://your-app.onrender.com/api/dubbing/upload \
+# Submit job
+curl -X POST https://your-app.onrender.com/api/dubbing/async/upload \
   -F "video=@video.mp4" \
   -F "sourceLanguage=es" \
   -F 'targetLanguages=["en","fr"]'
+
+# Response
+{
+  "success": true,
+  "jobId": "job_1783595904186",
+  "status": "pending",
+  "statusUrl": "/api/dubbing/async/status/job_1783595904186"
+}
+
+# Check status (poll every 5-10 seconds)
+curl https://your-app.onrender.com/api/dubbing/async/status/job_1783595904186
 ```
 
-Response will include R2 public URLs:
+Response when complete will include R2 public URLs:
 ```json
 {
   "success": true,
-  "languages": {
+  "jobId": "job_1783595904186",
+  "status": "completed",
+  "results": {
     "en": {
       "video": "https://pub-xxxxx.r2.dev/job_xxx_en.mp4"
     },

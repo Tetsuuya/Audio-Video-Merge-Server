@@ -92,7 +92,7 @@
 
   <div class="controls">
 
-    <h2>Full Dubbing Pipeline</h2>
+    <h2>Full Dubbing Pipeline (Async)</h2>
     <p style="font-size: 13px; color: #666;">Transcribe → Translate → Generate Speech → Merge</p>
 
     <p>
@@ -170,10 +170,10 @@
       </div>
     </p>
 
-    <button type="button" id="dubbingBtn">POST /api/dubbing/single</button>
+    <button type="button" id="dubbingBtn">Submit Dubbing Job</button>
 
     <div class="note">
-      <strong>Note:</strong> Processing takes 30-60 seconds per language. Videos are uploaded to Cloudinary.
+      <strong>Note:</strong> Processing takes 30-60 seconds per language. You can close this page and check status later using the jobId.
     </div>
 
   </div>
@@ -223,7 +223,7 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
     
-    output.textContent = `Processing: ${sourceLanguage} → ${targetLanguages.join(', ')}...\nThis will take ${targetLanguages.length * 30}-${targetLanguages.length * 60} seconds...`;
+    output.textContent = `Submitting job: ${sourceLanguage} → ${targetLanguages.join(', ')}...\nEstimated time: ${targetLanguages.length * 30}-${targetLanguages.length * 60} seconds...`;
     videoLinks.style.display = 'none';
     dubbingBtn.disabled = true;
     dubbingBtn.textContent = 'Processing...';
@@ -238,7 +238,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!videoUrl) {
           output.textContent = 'Please provide a video URL or path.';
           dubbingBtn.disabled = false;
-          dubbingBtn.textContent = 'POST /api/dubbing/single';
+          dubbingBtn.textContent = 'Submit Dubbing Job';
           return;
         }
         
@@ -248,7 +248,7 @@ document.addEventListener('DOMContentLoaded', function() {
           targetLanguages
         };
         
-        response = await fetch(SERVER + '/api/dubbing/single', {
+        response = await fetch(SERVER + `/api/dubbing/async/single`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!videoFile) {
           output.textContent = 'Please select a video file.';
           dubbingBtn.disabled = false;
-          dubbingBtn.textContent = 'POST /api/dubbing/single';
+          dubbingBtn.textContent = 'Submit Dubbing Job';
           return;
         }
         
@@ -269,26 +269,60 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('sourceLanguage', sourceLanguage);
         formData.append('targetLanguages', JSON.stringify(targetLanguages));
         
-        response = await fetch(SERVER + '/api/dubbing/upload', {
+        response = await fetch(SERVER + `/api/dubbing/async/upload`, {
           method: 'POST',
           body: formData
         });
       }
       
       const result = await response.json();
-      output.textContent = JSON.stringify(result, null, 2);
       
-      if (result.success && result.languages) {
-        showVideoLinks(result.languages);
-      }
+      // Show job submission result
+      output.textContent = JSON.stringify(result, null, 2);
+      output.textContent += '\n\nPolling for status...';
+      
+      // Poll for status
+      await pollJobStatus(result.jobId);
+      
     } catch (err) {
       output.textContent = 'Error: ' + err.message;
     } finally {
       dubbingBtn.disabled = false;
-      dubbingBtn.textContent = 'POST /api/dubbing/single';
+      dubbingBtn.textContent = 'Submit Dubbing Job';
     }
   });
 });
+
+async function pollJobStatus(jobId) {
+  const maxAttempts = 60; // 5 minutes
+  let attempts = 0;
+  
+  while (attempts < maxAttempts) {
+    await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+    
+    try {
+      const response = await fetch(SERVER + `/api/dubbing/async/status/${jobId}`);
+      const status = await response.json();
+      
+      output.textContent = JSON.stringify(status, null, 2);
+      
+      if (status.status === 'completed') {
+        showVideoLinks(status.results);
+        break;
+      } else if (status.status === 'failed') {
+        output.textContent += '\n\nJob failed: ' + status.error;
+        break;
+      } else {
+        output.textContent += '\n\nStatus: ' + status.status + ' (checking again in 5s...)';
+      }
+      
+      attempts++;
+    } catch (err) {
+      output.textContent += '\n\nError checking status: ' + err.message;
+      break;
+    }
+  }
+}
 
 function showVideoLinks(languages) {
   let html = '<strong>✓ Dubbing Complete!</strong><br><br>';

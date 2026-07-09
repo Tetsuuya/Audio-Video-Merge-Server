@@ -7,6 +7,9 @@ node_modules/
 .env.production
 .env.*.local
 
+# Firebase credentials
+firebase-credentials.json
+
 # Temporary files
 temp/
 *.tmp

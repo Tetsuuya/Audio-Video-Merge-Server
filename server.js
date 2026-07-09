@@ -37,8 +37,10 @@ app.use('/merge', mergeRoute);
 app.use('/test', testMergeRoute);
 
 // ===== DUBBING PIPELINE API ROUTES =====
-const dubbingRoute = require('./src/dubbing-pipeline/routes/dubbing');
-app.use('/api/dubbing', dubbingRoute);
+const dubbingAsyncRoute = require('./src/dubbing-pipeline/routes/dubbingAsync');
+
+// Async-only routes
+app.use('/api/dubbing/async', dubbingAsyncRoute);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -60,8 +62,9 @@ app.listen(PORT, () => {
   console.log(`   POST http://localhost:${PORT}/merge (production)`);
   console.log(`========================================`);
   console.log(`Full Dubbing Pipeline API:`);
-  console.log(`   POST http://localhost:${PORT}/api/dubbing/single`);
-  console.log(`   POST http://localhost:${PORT}/api/dubbing/multiple`);
+  console.log(`   POST http://localhost:${PORT}/api/dubbing/async/single`);
+  console.log(`   POST http://localhost:${PORT}/api/dubbing/async/upload`);
+  console.log(`   GET  http://localhost:${PORT}/api/dubbing/async/status/:jobId`);
   console.log(`========================================`);
   console.log(`Test Interfaces:`);
   console.log(`   Dubbing: http://localhost:${PORT}/dubbing.html`);
