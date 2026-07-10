@@ -1,48 +1,106 @@
-# Audio-Video Merge Server - Architecture Diagram
+# Audio-Video Merge & Dubbing Server - Architecture & ERD Diagram
+
+The `erd.md` file holds all the architectural and design diagrams for the project. Initially, the project did not have a database (hence the generic system diagrams), but it has since been updated to use **Firebase Firestore** for tracking async dubbing jobs.
+
+Below is the Entity Relationship Diagram (ERD) of the Firestore database, followed by the system architecture diagrams.
+
+## Database Schema / Entity Relationship Diagram (ERD)
+
+```mermaid
+erDiagram
+    Job ||--o{ JobLanguageResult : "has results per language"
+    
+    Job {
+        string jobId PK "Document ID"
+        string status "'pending' | 'processing' | 'completed' | 'failed'"
+        string videoUrl "Source video location (URL or filename)"
+        string sourceLanguage "Original language code (e.g. 'es')"
+        string_array targetLanguages "Requested target languages"
+        string error "Error message if job failed"
+        timestamp createdAt "Timestamp when job was created"
+        timestamp updatedAt "Timestamp of last modification"
+        timestamp completedAt "Timestamp when job finished processing"
+    }
+    
+    JobLanguageResult {
+        string language_key PK "Map key (e.g. 'en', 'fr')"
+        boolean success "Whether dubbing for this language succeeded"
+        string video "Public R2 Cloud URL of the dubbed video"
+        string transcript "Extracted original transcript text"
+        string translation "Translated script text"
+        string processingTime "Time taken to process this specific language"
+        string error "Error message if language specific dubbing failed"
+    }
+```
 
 ## System Architecture
 
 ```mermaid
 graph TB
     subgraph "Client Applications"
-        A[Web Browser]
-        B[Next.js App]
-        C[Mobile App]
+        A[Web Browser / HTML Test Clients]
+        B[Next.js Application]
+        C[Mobile Application]
     end
 
     subgraph "API Layer"
         D[Express Server<br/>Port 8080]
-        E[Auth Middleware]
-        F[File Upload<br/>Multer]
+        E[Multer File Upload]
     end
 
     subgraph "Routes"
-        G[/health]
-        H[/test/merge-one]
-        I[/test/merge-one-upload]
-        J[/test/merge-multiple]
-        K[/test/merge-multiple-upload]
-        L[/merge<br/>Production]
+        subgraph "Merge-Only Route Namespace"
+            G["/health"]
+            H["/test/merge-one"]
+            I["/test/merge-one-upload"]
+            J["/test/merge-multiple"]
+            K["/test/merge-multiple-upload"]
+            L["/merge<br/>Production"]
+        end
+        subgraph "Dubbing Pipeline Route Namespace"
+            DA1["/api/dubbing/async/single"]
+            DA2["/api/dubbing/async/upload"]
+            DA3["/api/dubbing/async/status/:jobId"]
+        end
     end
 
-    subgraph "Services"
-        M[FFmpeg Service<br/>Audio/Video Merge]
-        N[Download Service<br/>Fetch Remote Files]
-        O[Storage Service<br/>Local/Cloud Storage]
-        P[Webhook Service<br/>Notify Completion]
-        Q[Cleanup Service<br/>Delete Old Files]
+    subgraph "Services & Processors"
+        DP[Dubbing Processor]
+        
+        subgraph "Merge-Only Services"
+            M[FFmpeg Service<br/>Audio/Video Merge]
+            N[Download Service]
+            O[Storage Service]
+            P[Webhook Service]
+        end
+        
+        subgraph "Dubbing Pipeline Services"
+            AES[Audio Extraction Service]
+            TS[Transcription Service]
+            TLS[Translation Service]
+            TTSS[TTS Service]
+        end
+
+        subgraph "Shared Infrastructure Services"
+            R2S[Cloudflare R2 Service]
+            FBS[Firebase Firestore Service]
+            CS[Cleanup Service]
+        end
     end
 
-    subgraph "Storage"
-        R[(temp/<br/>Temp Uploads)]
-        S[(public/output/<br/>Merged Videos)]
-        T[(storage/<br/>Future Cloud)]
+    subgraph "Storage & Database"
+        DB[(Firestore DB<br/>Job Statuses)]
+        T_DIR[(temp/<br/>Local Temp Files)]
+        O_DIR[(public/output/<br/>Local Output Files)]
     end
 
-    subgraph "External"
-        U[FFmpeg Binary]
-        V[Cloud Storage<br/>S3/R2/etc]
-        W[Webhook Receiver<br/>Client Server]
+    subgraph "External Integration APIs"
+        EXT_FFMPEG[FFmpeg Binary]
+        EXT_AAI[AssemblyAI API<br/>Transcription]
+        EXT_DEEPL[DeepL API<br/>Translation]
+        EXT_REPLICATE[Replicate API<br/>Kokoro-82M TTS]
+        EXT_R2[Cloudflare R2<br/>Cloud Storage]
+        EXT_WEBHOOK[Webhook Receiver]
     end
 
     A --> D
@@ -50,14 +108,17 @@ graph TB
     C --> D
     
     D --> E
-    E --> F
-    F --> G
-    F --> H
-    F --> I
-    F --> J
-    F --> K
-    F --> L
+    E --> G
+    E --> H
+    E --> I
+    E --> J
+    E --> K
+    E --> L
+    E --> DA1
+    E --> DA2
+    E --> DA3
     
+    %% Merge-Only connections
     H --> M
     I --> M
     J --> M
@@ -65,22 +126,110 @@ graph TB
     L --> M
     L --> N
     L --> P
+    M --> EXT_FFMPEG
+    M --> O_DIR
+    N --> T_DIR
+    O --> O_DIR
+    P --> EXT_WEBHOOK
     
-    M --> U
-    M --> S
-    N --> R
-    O --> S
-    O --> V
-    P --> W
-    Q --> R
-    Q --> S
+    %% Dubbing pipeline connections
+    DA1 --> FBS
+    DA2 --> FBS
+    DA1 --> DP
+    DA2 --> DP
+    DA3 --> FBS
+    
+    DP --> AES
+    DP --> TS
+    DP --> TLS
+    DP --> TTSS
+    DP --> M
+    DP --> R2S
+    DP --> FBS
+    
+    AES --> EXT_FFMPEG
+    TS --> EXT_AAI
+    TLS --> EXT_DEEPL
+    TTSS --> EXT_REPLICATE
+    R2S --> EXT_R2
+    FBS --> DB
+    
+    CS --> T_DIR
+    CS --> O_DIR
+    CS --> FBS
     
     style D fill:#4A90E2,stroke:#2E5C8A,stroke-width:3px,color:#fff
-    style M fill:#E24A4A,stroke:#8A2E2E,stroke-width:2px,color:#fff
-    style U fill:#50C878,stroke:#2E8A4A,stroke-width:2px,color:#fff
+    style DP fill:#E24A4A,stroke:#8A2E2E,stroke-width:2px,color:#fff
+    style EXT_FFMPEG fill:#50C878,stroke:#2E8A4A,stroke-width:2px,color:#fff
+    style EXT_AAI fill:#8A2EE2,stroke:#5c1fa1,stroke-width:2px,color:#fff
+    style EXT_DEEPL fill:#FF8C00,stroke:#d17300,stroke-width:2px,color:#fff
+    style EXT_REPLICATE fill:#FF1493,stroke:#c40c6e,stroke-width:2px,color:#fff
+    style DB fill:#FFCC00,stroke:#cca000,stroke-width:2px,color:#000
+    style EXT_R2 fill:#FF7F50,stroke:#d15e34,stroke-width:2px,color:#fff
 ```
 
 ## Request Flow Diagrams
+
+### Async Dubbing Pipeline Flow (Multi-Language)
+
+```mermaid
+sequenceDiagram
+    participant Client as Client Application
+    participant API as Express API
+    participant DB as Firebase Firestore
+    participant Processor as Dubbing Processor
+    participant AES as Audio Extraction
+    participant TS as Transcription (AssemblyAI)
+    participant TLS as Translation (DeepL)
+    participant TTS as TTS (Kokoro-82M)
+    participant FFmpeg as FFmpeg Service
+    participant R2 as Cloudflare R2
+    
+    Client->>API: POST /api/dubbing/async/upload or /single
+    Note over API: Generate jobId
+    API->>DB: createJob(jobId, status: "pending")
+    API-->>Client: 202 Accepted { jobId, statusUrl }
+    
+    par Background Processing
+        API->>Processor: Process Job (Background)
+        Processor->>DB: updateJobStatus(jobId, "processing")
+        
+        Processor->>AES: extractAudio(video)
+        AES-->>Processor: Returns audio_audio.wav
+        
+        Processor->>TS: transcribeAudio(audio_audio.wav)
+        Note over TS: Uploads wav to AssemblyAI
+        Note over TS: Polls for transcription
+        TS-->>Processor: Returns original transcript text
+        
+        loop For each target language
+            Processor->>TLS: translateText(transcript, sourceLang, targetLang)
+            TLS-->>Processor: Returns translated text
+            
+            Processor->>TTS: generateSpeech(translation, targetLang)
+            Note over TTS: Calls Replicate Kokoro-82M
+            TTS-->>Processor: Returns dubbed wav path
+            
+            Processor->>FFmpeg: mergeAudioVideo(video, dubbed_wav)
+            FFmpeg-->>Processor: Returns merged video path
+            
+            Processor->>R2: uploadVideo(merged_video)
+            R2-->>Processor: Returns public URL & deletes local output file
+            
+            Processor->>DB: updateJobResult(jobId, language, result_url)
+        end
+        
+        Processor->>DB: updateJobStatus(jobId, "completed")
+        Note over Processor: Deletes local input video & temp files
+    end
+    
+    loop Poll Job Status
+        Client->>API: GET /api/dubbing/async/status/:jobId
+        API->>DB: getJob(jobId)
+        DB-->>API: Return Job Data
+        API-->>Client: Return Status (completed / processing / pending)
+    end
+```
 
 ### Single Audio/Video Merge Flow
 
@@ -135,70 +284,45 @@ sequenceDiagram
     API-->>Client: Return batch results<br/>{successful: N, results: []}
 ```
 
-### Production Merge Flow (Future)
-
-```mermaid
-sequenceDiagram
-    participant Client as Next.js App
-    participant API as Express API
-    participant Auth as Auth Middleware
-    participant Download as Download Service
-    participant FFmpeg as FFmpeg Service
-    participant Storage as Cloud Storage
-    participant Webhook as Webhook Service
-    participant Receiver as Client Webhook
-    
-    Client->>API: POST /merge<br/>x-dubbing-secret: xxx
-    API->>Auth: Verify secret
-    Auth-->>API: Authorized
-    API-->>Client: 202 Accepted<br/>{jobId, status: "processing"}
-    
-    par Process in background
-        API->>Download: Fetch video from URL
-        API->>Download: Fetch audio files from URLs
-        Download-->>API: Return local paths
-        
-        loop For each language
-            API->>FFmpeg: Merge video + audio
-            FFmpeg-->>API: Return merged file
-            API->>Storage: Upload to cloud (S3/R2)
-            Storage-->>API: Return public URL
-        end
-        
-        API->>Webhook: POST to client webhook
-        Webhook->>Receiver: Send results
-        Note over Receiver: {jobId, status: "completed",<br/>results: [{lang, url}]}
-    end
-```
-
 ## Data Flow
 
-### File Processing Flow
+### Dubbing and Processing Data Flow
 
 ```mermaid
-flowchart LR
-    A[Upload Files] --> B[temp/ Folder]
-    B --> C{File Type?}
-    C -->|Video| D[Video File]
-    C -->|Audio| E[Audio File]
+flowchart TD
+    subgraph "Input Phase"
+        A1[Client Video Upload] -->|Multer| B1[temp/ video.mp4]
+        A2[Client Video URL] -->|Download Service| B1[temp/ video.mp4]
+    end
     
-    D --> F[FFmpeg Merge]
-    E --> F
-    
-    F --> G[Merged Video]
-    G --> H[public/output/]
-    
-    H --> I{Storage Type?}
-    I -->|Local| J[Serve via Express]
-    I -->|Cloud| K[Upload to S3/R2]
-    
-    B -.Delete after 24h.-> L[Cleanup Service]
-    H -.Delete after 24h.-> L
-    
-    K --> M[CDN/Cloud URL]
-    J --> N[http://server/output/file.mp4]
-    M --> O[Client Download]
-    N --> O
+    subgraph "Extraction & Transcription"
+        B1 -->|FFmpeg Extract| C1[temp/ video_audio.wav]
+        C1 -->|AssemblyAI Upload| C2[AssemblyAI Server]
+        C2 -->|Polling| C3[Original Transcript Text]
+    end
+
+    subgraph "Dubbing Pipeline (Per Target Language)"
+        C3 -->|DeepL API| D1[Translated Text]
+        D1 -->|Replicate Kokoro-82M API| D2[temp/ tts_lang_timestamp.wav]
+        B1 -->|FFmpeg Merge| D3[FFmpeg Video + Translated Audio]
+        D2 -->|FFmpeg Merge| D3
+        D3 -->|Output| D4[public/output/ dubbed_*.mp4]
+    end
+
+    subgraph "Storage & Cloud Delivery"
+        D4 -->|Cloudflare R2 Upload| E1[R2 Storage Bucket]
+        E1 -->|Public Cloud URL| E2[Client Retrieval]
+        D4 -->|Delete Local File| E3[Cleanup]
+    end
+
+    subgraph "Status & Logging"
+        F1[(Firestore Database)]
+        A1 -.->|Create Job: pending| F1
+        A2 -.->|Create Job: pending| F1
+        B1 -.->|Update Status: processing| F1
+        D4 -.->|Update Result: language urls| F1
+        E1 -.->|Update Status: completed| F1
+    end
 ```
 
 ## Component Architecture
@@ -211,49 +335,71 @@ graph TB
         subgraph "Middleware"
             B[CORS]
             C[Body Parser]
-            D[Auth]
             E[Multer Upload]
         end
         
-        subgraph "Routes"
-            F[Health Check]
-            G[Test Endpoints]
-            H[Production Endpoint]
+        subgraph "Routes (src/.../routes)"
+            G[health.js]
+            H[merge.js]
+            I[testMerge.js]
+            J[dubbingAsync.js]
         end
         
-        subgraph "Services"
-            I[FFmpeg Service]
-            J[Download Service]
-            K[Storage Service]
-            L[Webhook Service]
-            M[Cleanup Service]
+        subgraph "Processors"
+            K[dubbingProcessor.js]
         end
         
-        subgraph "Utils"
-            N[Cleanup Utility]
+        subgraph "Merge-Only Domain Services (src/merge-only/services)"
+            L[ffmpegService.js]
+            M[downloadService.js]
+            N[storageService.js]
+            O[video.js]
+            P[webhookService.js]
+        end
+
+        subgraph "Dubbing Pipeline Domain Services (src/dubbing-pipeline/services)"
+            Q[audioExtractionService.js]
+            R[transcriptionService.js]
+            S[translationService.js]
+            T[ttsService.js]
+        end
+
+        subgraph "Shared Infrastructure Services (src/shared/services)"
+            U[firebaseService.js]
+            V[r2Service.js]
+        end
+        
+        subgraph "Shared Utilities (src/shared/utils)"
+            W[cleanup.js]
         end
     end
     
     A --> B
     A --> C
-    A --> D
     A --> E
     
-    A --> F
     A --> G
     A --> H
+    A --> I
+    A --> J
     
-    G --> I
-    H --> I
-    H --> J
-    I --> K
-    H --> L
+    J --> U
+    J --> K
     
-    A --> M
-    M --> N
+    K --> Q
+    K --> R
+    K --> S
+    K --> T
+    K --> L
+    K --> M
+    K --> V
+    K --> U
+    
+    A --> W
+    W --> U
     
     style A fill:#4A90E2,color:#fff
-    style I fill:#E24A4A,color:#fff
+    style K fill:#E24A4A,color:#fff
 ```
 
 ## FFmpeg Processing Pipeline
@@ -378,22 +524,31 @@ graph TB
 
 ```mermaid
 mindmap
-  root((Audio-Video<br/>Merge Server))
+  root((Audio-Video<br/>Merge & Dubbing Server))
     Backend
       Node.js 20+
-      Express.js 5.x
+      Express.js 4.x
       Multer
-        File Uploads
+        Multipart File Uploads
       FFmpeg
-        Video Processing
-    Storage
+        Audio Extraction
+        Audio-Video Merge
+    AI Services
+      AssemblyAI API
+        Speech-to-Text Transcription
+      DeepL API
+        Text Translation
+      Replicate API
+        Kokoro-82M TTS
+    Storage & DB
+      Cloudflare R2
+        S3 SDK Upload
+        Permanent Cloud Storage
+      Firebase Firestore
+        Job State Database
       Local FileSystem
         temp/
         public/output/
-      Cloud Ready
-        S3
-        R2
-        B2
     DevOps
       Docker
         Dockerfile
@@ -405,11 +560,11 @@ mindmap
       Test Endpoints
         merge-one
         merge-multiple
+        api/dubbing/async/*
       Web Interface
-        test.html
-        simple-test.html
+        dubbing.html
+        merge.html
     Security
-      Custom Secret
       CORS
       File Size Limits
 ```
@@ -418,8 +573,11 @@ mindmap
 
 ## Notes
 
-- **FFmpeg**: Core dependency for video/audio processing
+- **FFmpeg**: Core dependency for video/audio extraction and merging
 - **Multer**: Handles multipart/form-data file uploads (up to 500MB per file)
-- **Storage**: Currently local, designed for easy cloud migration
-- **Cleanup**: Automatic deletion of files older than 24 hours
-- **Scalability**: Supports batch processing of up to 50 audio tracks per request
+- **AssemblyAI**: Used for high-quality speech-to-text transcription
+- **DeepL**: Used for translation across target languages
+- **Replicate & Kokoro-82M**: Generates high-quality synthetic speech dubbed tracks
+- **Firebase Firestore**: Stores job states (pending -> processing -> completed/failed) and results
+- **Cloudflare R2**: Used for hosting final dubbed video files publicly
+- **Storage**: Automatically cleaned up (local files deleted after upload to R2, local temp files older than 24 hours deleted, and Firestore jobs older than 48 hours deleted)
