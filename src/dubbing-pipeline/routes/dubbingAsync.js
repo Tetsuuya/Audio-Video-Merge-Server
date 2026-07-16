@@ -156,6 +156,7 @@ router.get('/status/:jobId', async (req, res) => {
     
     if (job.status === 'completed') {
       response.results = job.results;
+      response.metrics = job.metrics || null;
       response.completedAt = job.completedAt;
     }
     
@@ -196,6 +197,16 @@ async function processJobBackground(jobId, videoPath, sourceLanguage, targetLang
       console.log(`✓ Job result updated: ${jobId} [${language}]`);
     }
     
+    // Save metrics to Firestore
+    if (result.metrics) {
+      const { db } = require('../../shared/services/firebaseService');
+      const { FieldValue } = require('firebase-admin/firestore');
+      await db.collection('jobs').doc(jobId).update({
+        metrics: result.metrics,
+        updatedAt: FieldValue.serverTimestamp()
+      });
+    }
+    
     // Clean up uploaded video file
     try {
       fs.unlinkSync(videoPath);
@@ -205,7 +216,7 @@ async function processJobBackground(jobId, videoPath, sourceLanguage, targetLang
     
     // Mark job as completed
     await updateJobStatus(jobId, 'completed');
-    console.log(`[${jobId}] Job complete in ${result.totalProcessingTime}\n`);
+    console.log(`[${jobId}] Job complete in ${result.metrics?.total_duration}s\n`);
     
   } catch (error) {
     console.error(`[${jobId}] Job failed:`, error.message);
@@ -238,9 +249,19 @@ async function processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, targ
       console.log(`✓ Job result updated: ${jobId} [${language}]`);
     }
     
+    // Save metrics to Firestore
+    if (result.metrics) {
+      const { db } = require('../../shared/services/firebaseService');
+      const { FieldValue } = require('firebase-admin/firestore');
+      await db.collection('jobs').doc(jobId).update({
+        metrics: result.metrics,
+        updatedAt: FieldValue.serverTimestamp()
+      });
+    }
+    
     // Mark job as completed
     await updateJobStatus(jobId, 'completed');
-    console.log(`[${jobId}] Job complete in ${result.totalProcessingTime}\n`);
+    console.log(`[${jobId}] Job complete in ${result.metrics?.total_duration}s\n`);
     
   } catch (error) {
     console.error(`[${jobId}] Job failed:`, error.message);

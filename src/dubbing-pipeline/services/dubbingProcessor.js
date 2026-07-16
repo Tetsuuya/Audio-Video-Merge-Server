@@ -76,6 +76,7 @@ function groupWordsIntoSentences(words) {
 async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLanguages, onProgress }) {
   const startTime = Date.now();
   const results = {};
+  const timings = {}; // per-language timing breakdowns
   const tempFilesToCleanup = [];
   
   try {
@@ -83,11 +84,15 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
     console.log(`📹 Video duration: ${videoDuration}s`);
     
     if (onProgress) onProgress('extracting_audio');
+    const t0 = Date.now();
     const audioPath = await extractAudio(videoPath);
     tempFilesToCleanup.push(audioPath);
+    const extractionDuration = (Date.now() - t0) / 1000;
     
     if (onProgress) onProgress('transcribing');
+    const t1 = Date.now();
     const transcript = await transcribeAudio(audioPath, sourceLanguage);
+    const transcriptionDuration = (Date.now() - t1) / 1000;
     
     const segments = groupWordsIntoSentences(transcript.words);
     console.log(`Parsed ${segments.length} sentence segments for dubbing.`);
@@ -95,14 +100,17 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
     for (const targetLang of targetLanguages) {
       const langStartTime = Date.now();
       const langTempFiles = [];
+      const langTimings = {};
       
       try {
         if (onProgress) onProgress('processing', targetLang);
         
         let translatedSegments = [];
         if (segments.length > 0) {
+          const tTranslate = Date.now();
           const textsToTranslate = segments.map(s => s.text);
           const translatedTexts = await translateTexts(textsToTranslate, sourceLanguage, targetLang);
+          langTimings.translation = (Date.now() - tTranslate) / 1000;
           
           translatedSegments = segments.map((seg, idx) => ({
             ...seg,
@@ -110,6 +118,7 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
           }));
         }
         
+        const tTts = Date.now();
         const ttsPromises = translatedSegments.map(async (seg, idx) => {
           const tempOutPath = path.join(process.cwd(), 'temp', `seg_${jobId}_${targetLang}_${idx}_orig.wav`);
           const generatedPath = await generateSpeech(seg.translatedText, targetLang, tempOutPath);
@@ -121,6 +130,7 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
         });
         
         const segmentsWithTts = await Promise.all(ttsPromises);
+        langTimings.tts = (Date.now() - tTts) / 1000;
         
         const adjustedSegments = [];
         for (let i = 0; i < segmentsWithTts.length; i++) {
@@ -159,11 +169,24 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
         
         await fs.promises.mkdir(path.dirname(outputPath), { recursive: true });
         
+        const tMerge = Date.now();
         await mergeAudioVideo(videoPath, assembledAudioPath, outputPath);
+        langTimings.merge = (Date.now() - tMerge) / 1000;
         
+        const tUpload = Date.now();
         const r2Url = await uploadVideo(outputPath, `${jobId}_${targetLang}.mp4`);
+        langTimings.upload = (Date.now() - tUpload) / 1000;
         
-        const langTime = ((Date.now() - langStartTime) / 1000).toFixed(2);
+        const langTime = (Date.now() - langStartTime) / 1000;
+        langTimings.total = parseFloat(langTime.toFixed(2));
+        langTimings.extraction = parseFloat(extractionDuration.toFixed(2));
+        langTimings.transcription = parseFloat(transcriptionDuration.toFixed(2));
+        langTimings.translation = parseFloat((langTimings.translation || 0).toFixed(2));
+        langTimings.tts = parseFloat((langTimings.tts || 0).toFixed(2));
+        langTimings.merge = parseFloat((langTimings.merge || 0).toFixed(2));
+        langTimings.upload = parseFloat((langTimings.upload || 0).toFixed(2));
+        
+        timings[targetLang] = langTimings;
         
         const fullTranslation = translatedSegments.map(s => s.translatedText).join(' ');
         
@@ -171,8 +194,7 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
           success: true,
           transcript: transcript.text,
           translation: fullTranslation,
-          video: r2Url,
-          processingTime: langTime + 's'
+          video: r2Url
         };
         
         if (onProgress) onProgress('completed', targetLang);
@@ -198,13 +220,23 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
       }
     }
     
-    const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+    const totalTime = (Date.now() - startTime) / 1000;
     
     return {
       success: true,
       transcript: transcript.text,
       results,
-      totalProcessingTime: totalTime + 's'
+      metrics: {
+        total_duration: parseFloat(totalTime.toFixed(2)),
+        extraction_duration: parseFloat(extractionDuration.toFixed(2)),
+        transcription_duration: parseFloat(transcriptionDuration.toFixed(2)),
+        tts_duration: parseFloat(Object.values(timings).reduce((sum, t) => sum + (t.tts || 0), 0).toFixed(2)),
+        translation_duration: parseFloat(Object.values(timings).reduce((sum, t) => sum + (t.translation || 0), 0).toFixed(2)),
+        merge_duration: parseFloat(Object.values(timings).reduce((sum, t) => sum + (t.merge || 0), 0).toFixed(2)),
+        upload_duration: parseFloat(Object.values(timings).reduce((sum, t) => sum + (t.upload || 0), 0).toFixed(2)),
+        segments_count: segments.length,
+        languages_processed: Object.keys(results).length
+      }
     };
     
   } catch (error) {
