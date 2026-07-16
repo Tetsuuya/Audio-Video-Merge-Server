@@ -89,7 +89,38 @@ async function batchTranslate(text, sourceLang, targetLangs) {
   }
 }
 
+/**
+ * Translate an array of texts using DeepL in a single batch request
+ * @param {string[]} texts - Array of texts to translate
+ * @param {string} sourceLang - Source language code
+ * @param {string} targetLang - Target language code
+ * @returns {Promise<string[]>} - Array of translated texts
+ */
+async function translateTexts(texts, sourceLang, targetLang) {
+  if (!texts || texts.length === 0) return [];
+  try {
+    console.log(`🌍 Translating array of ${texts.length} segments ${sourceLang} → ${targetLang} in batch...`);
+    
+    const sourceNormalized = normalizeLanguageCode(sourceLang, false);
+    const targetNormalized = normalizeLanguageCode(targetLang, true);
+    
+    const results = await translator.translateText(
+      texts,
+      sourceNormalized,
+      targetNormalized
+    );
+    
+    console.log(`✓ Batch translation complete`);
+    return results.map(r => r.text);
+    
+  } catch (error) {
+    console.error(`Batch translation failed (${sourceLang} → ${targetLang}):`, error.message);
+    throw new Error(`Failed to batch translate: ${error.message}`);
+  }
+}
+
 module.exports = {
   translateText,
-  batchTranslate
+  batchTranslate,
+  translateTexts
 };

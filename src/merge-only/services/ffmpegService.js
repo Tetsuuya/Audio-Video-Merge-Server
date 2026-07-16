@@ -91,7 +91,96 @@ async function getDuration(filePath) {
   }
 }
 
+/**
+ * Speed up audio file using FFmpeg atempo filter
+ * @param {string} inputPath - Path to input audio file
+ * @param {string} outputPath - Path to output audio file
+ * @param {number} speed - Speed factor (e.g. 1.25)
+ * @returns {Promise<string>} - Path to modified audio file
+ */
+async function speedUpAudio(inputPath, outputPath, speed) {
+  let filterStr;
+  if (speed >= 0.5 && speed <= 2.0) {
+    filterStr = `atempo=${speed.toFixed(4)}`;
+  } else {
+    let remainingSpeed = speed;
+    const filters = [];
+    while (remainingSpeed > 2.0) {
+      filters.push('atempo=2.0');
+      remainingSpeed /= 2.0;
+    }
+    while (remainingSpeed < 0.5) {
+      filters.push('atempo=0.5');
+      remainingSpeed /= 0.5;
+    }
+    filters.push(`atempo=${remainingSpeed.toFixed(4)}`);
+    filterStr = filters.join(',');
+  }
+
+  const command = `ffmpeg -y -i "${inputPath}" -filter:a "${filterStr}" "${outputPath}"`;
+  
+  console.log(`Running speedUpAudio: ${command}`);
+  
+  try {
+    await execPromise(command);
+    return outputPath;
+  } catch (error) {
+    console.error('✗ speedUpAudio failed:', error.message);
+    throw new Error(`FFmpeg speed adjustment failed: ${error.message}`);
+  }
+}
+
+/**
+ * Assemble multiple audio files at specific timestamps into a single audio track
+ * @param {Array<Object>} segments - Array of { filePath, start }
+ * @param {number} videoDuration - Total duration of the video in seconds
+ * @param {string} outputPath - Output path for the mixed audio file
+ * @returns {Promise<string>} - Path to the assembled audio file
+ */
+async function assembleAudioTimeline(segments, videoDuration, outputPath) {
+  if (!segments || segments.length === 0) {
+    const command = `ffmpeg -y -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -t ${videoDuration} "${outputPath}"`;
+    console.log(`Running assembleAudioTimeline (silent): ${command}`);
+    try {
+      await execPromise(command);
+      return outputPath;
+    } catch (error) {
+      console.error('✗ assembleAudioTimeline silent generation failed:', error.message);
+      throw new Error(`FFmpeg silent timeline generation failed: ${error.message}`);
+    }
+  }
+
+  const inputs = ['-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100'];
+  const filterParts = [];
+  const amixInputs = ['[0:a]'];
+
+  segments.forEach((seg, index) => {
+    inputs.push(`-i "${seg.filePath}"`);
+    const delayMs = Math.round(seg.start * 1000);
+    const safeDelayMs = Math.max(0, delayMs);
+    filterParts.push(`[${index + 1}:a]adelay=${safeDelayMs}|${safeDelayMs}[a${index + 1}]`);
+    amixInputs.push(`[a${index + 1}]`);
+  });
+
+  filterParts.push(`${amixInputs.join('')}amix=inputs=${segments.length + 1}:dropout_transition=0:normalize=0[outa]`);
+
+  const filterComplex = filterParts.join('; ');
+  const command = `ffmpeg -y ${inputs.join(' ')} -filter_complex "${filterComplex}" -map "[outa]" -t ${videoDuration} "${outputPath}"`;
+  
+  console.log(`Running assembleAudioTimeline: ${command}`);
+  
+  try {
+    await execPromise(command);
+    return outputPath;
+  } catch (error) {
+    console.error('✗ assembleAudioTimeline failed:', error.message);
+    throw new Error(`FFmpeg audio timeline assembly failed: ${error.message}`);
+  }
+}
+
 module.exports = {
   mergeAudioVideo,
-  getDuration
+  getDuration,
+  speedUpAudio,
+  assembleAudioTimeline
 };
