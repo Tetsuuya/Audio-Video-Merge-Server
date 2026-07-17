@@ -6,6 +6,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const log = require('../../shared/utils/logger');
 const { extractAudio } = require('./audioExtractionService');
 const { transcribeAudio } = require('./transcriptionService');
 const { translateText, translateTexts } = require('./translationService');
@@ -81,7 +82,7 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
   
   try {
     const videoDuration = await getDuration(videoPath);
-    console.log(`📹 Video duration: ${videoDuration}s`);
+    log.info(`Video duration: ${videoDuration}s`);
     
     if (onProgress) onProgress('extracting_audio');
     const t0 = Date.now();
@@ -95,7 +96,7 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
     const transcriptionDuration = (Date.now() - t1) / 1000;
     
     const segments = groupWordsIntoSentences(transcript.words);
-    console.log(`Parsed ${segments.length} sentence segments for dubbing.`);
+    log.info(`Segmented transcript into ${segments.length} sentences`);
     
     for (const targetLang of targetLanguages) {
       const langStartTime = Date.now();
@@ -104,6 +105,8 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
       
       try {
         if (onProgress) onProgress('processing', targetLang);
+        
+        log.section(`Processing language: ${targetLang.toUpperCase()}`);
         
         let translatedSegments = [];
         if (segments.length > 0) {
@@ -144,14 +147,13 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
             const speed = actualDuration / targetDuration;
             const cappedSpeed = Math.min(2.0, speed);
             
-            console.log(`[Segment ${i}] Actual: ${actualDuration.toFixed(2)}s, Target: ${targetDuration.toFixed(2)}s. Speed factor: ${speed.toFixed(2)} (capped at ${cappedSpeed.toFixed(2)})`);
-            
+            log.detail(`Seg ${i}: actual=${actualDuration.toFixed(2)}s  target=${targetDuration.toFixed(2)}s  speed=${speed.toFixed(2)}x (capped ${cappedSpeed.toFixed(2)}x)`)            
             const speedPath = path.join(process.cwd(), 'temp', `seg_${jobId}_${targetLang}_${i}_speed.wav`);
             await speedUpAudio(seg.rawTtsPath, speedPath, cappedSpeed);
             langTempFiles.push(speedPath);
             finalTtsPath = speedPath;
           } else {
-            console.log(`[Segment ${i}] Actual: ${actualDuration.toFixed(2)}s, Target: ${targetDuration.toFixed(2)}s. No speed adjustment needed.`);
+            log.detail(`Seg ${i}: actual=${actualDuration.toFixed(2)}s  target=${targetDuration.toFixed(2)}s  ok`);
           }
           
           adjustedSegments.push({
@@ -200,7 +202,7 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
         if (onProgress) onProgress('completed', targetLang);
         
       } catch (error) {
-        console.error(`[${jobId}] ${targetLang} failed:`, error.message);
+        log.error(`Language [${targetLang}] failed: ${error.message}`);
         results[targetLang] = {
           success: false,
           error: error.message

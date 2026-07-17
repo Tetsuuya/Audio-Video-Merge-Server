@@ -13,7 +13,8 @@ const app = express();
 // Load environment variables
 require('dotenv').config();
 
-// Import cleanup utility
+// Import logger and cleanup utility
+const log = require('./src/shared/utils/logger');
 const { startAutoCleanup } = require('./src/shared/utils/cleanup');
 
 // Configuration
@@ -53,28 +54,23 @@ app.use((err, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`\nDubbing Server running on port ${PORT}`);
-  console.log(`========================================`);
-  console.log(`Merge-Only API:`);
-  console.log(`   GET  http://localhost:${PORT}/health`);
-  console.log(`   POST http://localhost:${PORT}/test/merge-one`);
-  console.log(`   POST http://localhost:${PORT}/test/merge-multiple`);
-  console.log(`   POST http://localhost:${PORT}/merge (production)`);
-  console.log(`========================================`);
-  console.log(`Full Dubbing Pipeline API:`);
-  console.log(`   POST http://localhost:${PORT}/api/dubbing/async/single`);
-  console.log(`   POST http://localhost:${PORT}/api/dubbing/async/upload`);
-  console.log(`   GET  http://localhost:${PORT}/api/dubbing/async/status/:jobId`);
-  console.log(`========================================`);
-  console.log(`Test Interfaces:`);
-  console.log(`   Dubbing: http://localhost:${PORT}/dubbing.html`);
-  console.log(`   Merge: http://localhost:${PORT}/merge.html`);
-  console.log(`========================================\n`);
-  
-  // Start automatic cleanup if enabled
+  log.section(`Dubbing Server  —  port ${PORT}`);
+  log.info(`Merge-Only API`);
+  log.detail(`GET  /health`);
+  log.detail(`POST /test/merge-one`);
+  log.detail(`POST /test/merge-multiple`);
+  log.detail(`POST /merge  (production)`);
+  log.info(`Full Dubbing Pipeline API`);
+  log.detail(`POST /api/dubbing/async/single`);
+  log.detail(`POST /api/dubbing/async/upload`);
+  log.detail(`GET  /api/dubbing/async/status/:jobId`);
+  log.info(`Test interfaces`);
+  log.detail(`http://localhost:${PORT}/dubbing.html`);
+  log.detail(`http://localhost:${PORT}/merge.html`);
+
   if (AUTO_CLEANUP) {
     startAutoCleanup();
   } else {
-    console.log('Auto-cleanup disabled. Run "npm run cleanup" manually.');
+    log.warn('Auto-cleanup disabled. Run "npm run cleanup" manually.');
   }
 });

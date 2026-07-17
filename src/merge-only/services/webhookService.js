@@ -44,6 +44,7 @@
 
 const https = require('https');
 const http = require('http');
+const log = require('../../shared/utils/logger');
 
 /**
  * Send webhook notification
@@ -76,17 +77,17 @@ async function sendWebhook(webhookUrl, payload) {
       
       res.on('end', () => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
-          console.log(`✓ Webhook sent successfully (${res.statusCode})`);
+          log.success(`Webhook sent  (${res.statusCode})`);
           resolve();
         } else {
-          console.error(`✗ Webhook failed (${res.statusCode}): ${data}`);
+          log.error(`Webhook failed  (${res.statusCode}): ${data}`);
           reject(new Error(`Webhook failed with status ${res.statusCode}`));
         }
       });
     });
     
     req.on('error', (error) => {
-      console.error('✗ Webhook request error:', error.message);
+      log.error(`Webhook request error: ${error.message}`);
       reject(error);
     });
     
@@ -110,7 +111,7 @@ async function sendSuccess(webhookUrl, jobId, projectId, results) {
     results
   };
   
-  console.log('Sending success webhook:', payload);
+  log.step(`Sending success webhook  jobId=${jobId}`);
   await sendWebhook(webhookUrl, payload);
 }
 
@@ -129,7 +130,7 @@ async function sendFailure(webhookUrl, jobId, projectId, error) {
     error
   };
   
-  console.log('Sending failure webhook:', payload);
+  log.step(`Sending failure webhook  jobId=${jobId}`);
   await sendWebhook(webhookUrl, payload);
 }
 
@@ -148,7 +149,7 @@ async function sendPartial(webhookUrl, jobId, projectId, results) {
     results
   };
   
-  console.log('Sending partial webhook:', payload);
+  log.step(`Sending partial webhook  jobId=${jobId}`);
   await sendWebhook(webhookUrl, payload);
 }
 

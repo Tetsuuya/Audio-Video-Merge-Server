@@ -5,24 +5,22 @@
  * Takes extracted audio.wav and returns transcript
  */
 
-
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const log = require('../../shared/utils/logger');
 
 const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY;
 const ASSEMBLYAI_BASE_URL = 'https://api.assemblyai.com/v2';
-
 
 /**
  * Upload audio file to AssemblyAI
  * @param {string} audioPath - Path to audio file
  * @returns {Promise<string>} - Upload URL
  */
-
 async function uploadAudio(audioPath) {
   try {
-    console.log(`📤 Uploading audio: ${path.basename(audioPath)}`);
+    log.step(`Uploading audio to AssemblyAI: ${path.basename(audioPath)}`);
 
     const audioData = fs.readFileSync(audioPath);
 
@@ -37,11 +35,11 @@ async function uploadAudio(audioPath) {
       }
     );
 
-    console.log(`✓ Audio uploaded`);
+    log.success('Audio uploaded to AssemblyAI');
     return response.data.upload_url;
 
   } catch (error) {
-    console.error('Upload failed:', error.message);
+    log.error(`Audio upload failed: ${error.message}`);
     throw new Error(`Failed to upload audio: ${error.message}`);
   }
 }
@@ -52,10 +50,9 @@ async function uploadAudio(audioPath) {
  * @param {string} language - Language code (e.g., 'en', 'es')
  * @returns {Promise<string>} - Transcription ID
  */
-
 async function createTranscript(audioUrl, language = 'en') {
   try {
-    console.log(`Creating transcription job (language: ${language})...`);
+    log.step(`Creating transcription job  language=${language}`);
 
     const response = await axios.post(
       `${ASSEMBLYAI_BASE_URL}/transcript`,
@@ -71,11 +68,11 @@ async function createTranscript(audioUrl, language = 'en') {
       }
     );
 
-    console.log(`✓ Transcription job created: ${response.data.id}`);
+    log.success(`Transcription job created: ${response.data.id}`);
     return response.data.id;
 
   } catch (error) {
-    console.error('Transcription creation failed:', error.message);
+    log.error(`Transcription job creation failed: ${error.message}`);
     throw new Error(`Failed to create transcript: ${error.message}`);
   }
 }
@@ -87,34 +84,31 @@ async function createTranscript(audioUrl, language = 'en') {
  */
 async function pollTranscript(transcriptId) {
   try {
-    console.log(`⏳ Waiting for transcription to complete...`);
+    log.step(`Polling transcription: ${transcriptId}`);
 
     while (true) {
       const response = await axios.get(
         `${ASSEMBLYAI_BASE_URL}/transcript/${transcriptId}`,
         {
-          headers: {
-            'authorization': ASSEMBLYAI_API_KEY
-          }
+          headers: { 'authorization': ASSEMBLYAI_API_KEY }
         }
       );
 
       const status = response.data.status;
 
       if (status === 'completed') {
-        console.log(`✓ Transcription complete!`);
+        log.success('Transcription complete');
         return response.data;
       } else if (status === 'error') {
         throw new Error(`Transcription failed: ${response.data.error}`);
       }
 
-      // Wait 3 seconds before polling again
       await new Promise(resolve => setTimeout(resolve, 3000));
       process.stdout.write('.');
     }
 
   } catch (error) {
-    console.error('Polling failed:', error.message);
+    log.error(`Transcription polling failed: ${error.message}`);
     throw new Error(`Failed to get transcript: ${error.message}`);
   }
 }
@@ -127,20 +121,12 @@ async function pollTranscript(transcriptId) {
  */
 async function transcribeAudio(audioPath, language = 'en') {
   try {
-    console.log(`\nStarting transcription...`);
-    console.log(`   Audio: ${path.basename(audioPath)}`);
-    console.log(`   Language: ${language}\n`);
+    log.section(`Transcription  |  ${path.basename(audioPath)}  |  lang=${language}`);
 
-    // Step 1: Upload audio
     const uploadUrl = await uploadAudio(audioPath);
-
-    // Step 2: Create transcript job
     const transcriptId = await createTranscript(uploadUrl, language);
-
-    // Step 3: Wait for completion
     const transcript = await pollTranscript(transcriptId);
 
-    // Extract useful data
     const result = {
       text: transcript.text,
       words: transcript.words || [],
@@ -148,15 +134,13 @@ async function transcribeAudio(audioPath, language = 'en') {
       language: transcript.language_code
     };
 
-    console.log(`\nTranscript preview:`);
-    console.log(`   "${result.text.substring(0, 100)}..."`);
-    console.log(`   Duration: ${result.duration}s`);
-    console.log(`   Words: ${result.words.length}\n`);
+    log.detail(`Preview: "${result.text.substring(0, 100)}..."`);
+    log.detail(`Duration: ${result.duration}s  |  Words: ${result.words.length}`);
 
     return result;
 
   } catch (error) {
-    console.error('Transcription failed:', error.message);
+    log.error(`Transcription failed: ${error.message}`);
     throw error;
   }
 }

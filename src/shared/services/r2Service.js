@@ -6,6 +6,7 @@
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const fs = require('fs');
 const path = require('path');
+const log = require('../utils/logger');
 
 // Configure R2 client (S3-compatible)
 const r2Client = new S3Client({
@@ -25,7 +26,7 @@ const r2Client = new S3Client({
  */
 async function uploadVideo(filePath, key) {
   try {
-    console.log('Uploading to R2:', filePath);
+    log.step(`Uploading to R2: ${path.basename(filePath)}`);
     
     const fileContent = fs.readFileSync(filePath);
     const fileName = path.basename(filePath);
@@ -40,23 +41,21 @@ async function uploadVideo(filePath, key) {
     
     await r2Client.send(command);
     
-    // Construct public URL
     const publicUrl = `${process.env.R2_PUBLIC_URL}/${objectKey}`;
     
-    console.log('Upload complete:', publicUrl);
+    log.success(`R2 upload complete: ${publicUrl}`);
     
-    // Delete local file after upload
     try {
       fs.unlinkSync(filePath);
-      console.log('Local file deleted:', filePath);
+      log.info(`Local file removed: ${path.basename(filePath)}`);
     } catch (err) {
-      console.warn('Failed to delete local file:', err.message);
+      log.warn(`Failed to delete local file: ${err.message}`);
     }
     
     return publicUrl;
     
   } catch (error) {
-    console.error('R2 upload failed:', error.message);
+    log.error(`R2 upload failed: ${error.message}`);
     throw error;
   }
 }

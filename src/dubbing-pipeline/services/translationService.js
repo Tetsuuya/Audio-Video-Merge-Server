@@ -6,6 +6,7 @@
  */
 
 const deepl = require('deepl-node');
+const log = require('../../shared/utils/logger');
 
 const DEEPL_API_KEY = process.env.DEEPL_API_KEY;
 const translator = new deepl.Translator(DEEPL_API_KEY);
@@ -18,13 +19,12 @@ const translator = new deepl.Translator(DEEPL_API_KEY);
  */
 function normalizeLanguageCode(langCode, isTarget = false) {
   const code = langCode.toLowerCase();
-  
-  // DeepL requires specific variants for English and Portuguese when used as target
+
   if (isTarget) {
-    if (code === 'en') return 'EN-US'; // Default to US English
-    if (code === 'pt') return 'PT-BR'; // Default to Brazilian Portuguese
+    if (code === 'en') return 'EN-US';
+    if (code === 'pt') return 'PT-BR';
   }
-  
+
   return langCode.toUpperCase();
 }
 
@@ -35,26 +35,20 @@ function normalizeLanguageCode(langCode, isTarget = false) {
  * @param {string} targetLang - Target language code (e.g., 'es')
  * @returns {Promise<string>} - Translated text
  */
-
 async function translateText(text, sourceLang, targetLang) {
   try {
-    console.log(`🌍 Translating ${sourceLang} → ${targetLang}...`);
-    
-    // Normalize language codes for DeepL
+    log.step(`Translating  ${sourceLang.toUpperCase()} → ${targetLang.toUpperCase()}`);
+
     const sourceNormalized = normalizeLanguageCode(sourceLang, false);
     const targetNormalized = normalizeLanguageCode(targetLang, true);
-    
-    const result = await translator.translateText(
-      text,
-      sourceNormalized,
-      targetNormalized
-    );
-    
-    console.log(`✓ Translation complete (${result.text.length} chars)`);
+
+    const result = await translator.translateText(text, sourceNormalized, targetNormalized);
+
+    log.success(`Translation done  (${result.text.length} chars)`);
     return result.text;
-    
+
   } catch (error) {
-    console.error(`Translation failed (${sourceLang} → ${targetLang}):`, error.message);
+    log.error(`Translation failed [${sourceLang} → ${targetLang}]: ${error.message}`);
     throw new Error(`Failed to translate: ${error.message}`);
   }
 }
@@ -66,25 +60,21 @@ async function translateText(text, sourceLang, targetLang) {
  * @param {string[]} targetLangs - Array of target language codes
  * @returns {Promise<object>} - { 'es': '...', 'fr': '...', ... }
  */
-
 async function batchTranslate(text, sourceLang, targetLangs) {
   try {
-    console.log(`\n📚 Batch translating to ${targetLangs.length} languages...`);
-    console.log(`   Source: ${sourceLang}`);
-    console.log(`   Targets: ${targetLangs.join(', ')}\n`);
-    
+    log.section(`Batch Translation  |  ${sourceLang.toUpperCase()} → [${targetLangs.join(', ')}]`);
+
     const translations = {};
-    
-    // Translate to each language sequentially
+
     for (const targetLang of targetLangs) {
       translations[targetLang] = await translateText(text, sourceLang, targetLang);
     }
-    
-    console.log(`✓ All translations complete\n`);
+
+    log.success('All translations complete');
     return translations;
-    
+
   } catch (error) {
-    console.error('Batch translation failed:', error.message);
+    log.error(`Batch translation failed: ${error.message}`);
     throw error;
   }
 }
@@ -99,22 +89,18 @@ async function batchTranslate(text, sourceLang, targetLangs) {
 async function translateTexts(texts, sourceLang, targetLang) {
   if (!texts || texts.length === 0) return [];
   try {
-    console.log(`🌍 Translating array of ${texts.length} segments ${sourceLang} → ${targetLang} in batch...`);
-    
+    log.step(`Batch translating ${texts.length} segments  ${sourceLang.toUpperCase()} → ${targetLang.toUpperCase()}`);
+
     const sourceNormalized = normalizeLanguageCode(sourceLang, false);
     const targetNormalized = normalizeLanguageCode(targetLang, true);
-    
-    const results = await translator.translateText(
-      texts,
-      sourceNormalized,
-      targetNormalized
-    );
-    
-    console.log(`✓ Batch translation complete`);
+
+    const results = await translator.translateText(texts, sourceNormalized, targetNormalized);
+
+    log.success(`Batch translation done  (${texts.length} segments)`);
     return results.map(r => r.text);
-    
+
   } catch (error) {
-    console.error(`Batch translation failed (${sourceLang} → ${targetLang}):`, error.message);
+    log.error(`Batch translation failed [${sourceLang} → ${targetLang}]: ${error.message}`);
     throw new Error(`Failed to batch translate: ${error.message}`);
   }
 }

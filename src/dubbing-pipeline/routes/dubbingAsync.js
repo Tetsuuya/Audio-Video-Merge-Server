@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const { createJob, getJob, updateJobStatus, updateJobResult } = require('../../shared/services/firebaseService');
 const { processDubbingJob, processDubbingJobFromUrl } = require('../services/dubbingProcessor');
+const log = require('../../shared/utils/logger');
 const fs = require('fs');
 
 // Configure multer for file uploads
@@ -45,12 +46,11 @@ router.post('/upload', upload.single('video'), async (req, res) => {
     // Create job in Firestore
     await createJob(jobId, videoFile.originalname, sourceLanguage, targetLanguages);
     
-    console.log(`\nAsync job created: ${jobId}`);
-    console.log(`   ${sourceLanguage.toUpperCase()} -> [${targetLanguages.map(l => l.toUpperCase()).join(', ')}]`);
+    log.job(jobId, `Created  ${sourceLanguage.toUpperCase()} → [${targetLanguages.map(l => l.toUpperCase()).join(', ')}]`);
     
     // Start background processing (don't await)
     processJobBackground(jobId, videoFile.path, sourceLanguage, targetLanguages).catch(err => {
-      console.error(`Job ${jobId} failed:`, err.message);
+      log.error(`Job ${jobId} failed: ${err.message}`);
       updateJobStatus(jobId, 'failed', err.message);
     });
     
@@ -65,7 +65,7 @@ router.post('/upload', upload.single('video'), async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Failed to create job:', error.message);
+    log.error(`Failed to create job (upload): ${error.message}`);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -106,12 +106,11 @@ router.post('/single', async (req, res) => {
     // Create job in Firestore
     await createJob(jobId, videoUrl, sourceLanguage, languages);
     
-    console.log(`\nAsync job created: ${jobId}`);
-    console.log(`   ${sourceLanguage.toUpperCase()} -> [${languages.map(l => l.toUpperCase()).join(', ')}]`);
+    log.job(jobId, `Created  ${sourceLanguage.toUpperCase()} → [${languages.map(l => l.toUpperCase()).join(', ')}]`);
     
     // Start background processing (don't await)
     processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, languages).catch(err => {
-      console.error(`Job ${jobId} failed:`, err.message);
+      log.error(`Job ${jobId} failed: ${err.message}`);
       updateJobStatus(jobId, 'failed', err.message);
     });
     
@@ -126,7 +125,7 @@ router.post('/single', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Failed to create job:', error.message);
+    log.error(`Failed to create job (single): ${error.message}`);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -167,7 +166,7 @@ router.get('/status/:jobId', async (req, res) => {
     res.json(response);
     
   } catch (error) {
-    console.error('Failed to get job status:', error.message);
+    log.error(`Failed to get job status: ${error.message}`);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -177,27 +176,23 @@ router.get('/status/:jobId', async (req, res) => {
  */
 async function processJobBackground(jobId, videoPath, sourceLanguage, targetLanguages) {
   try {
-    console.log(`\nProcessing job: ${jobId}`);
+    log.job(jobId, 'Starting background processing');
     await updateJobStatus(jobId, 'processing');
-    
-    // Use shared processor with progress callbacks
+
     const result = await processDubbingJob({
       jobId,
       videoPath,
       sourceLanguage,
       targetLanguages,
-      onProgress: async (stage, language, error) => {
-        console.log(`[${jobId}] ${stage}${language ? ` [${language}]` : ''}`);
+      onProgress: async (stage, language) => {
+        log.job(jobId, `${stage}${language ? `  [${language}]` : ''}`);
       }
     });
-    
-    // Update Firestore with all completed results
+
     for (const [language, langResult] of Object.entries(result.results)) {
       await updateJobResult(jobId, language, langResult);
-      console.log(`✓ Job result updated: ${jobId} [${language}]`);
     }
-    
-    // Save metrics to Firestore
+
     if (result.metrics) {
       const { db } = require('../../shared/services/firebaseService');
       const { FieldValue } = require('firebase-admin/firestore');
@@ -206,20 +201,18 @@ async function processJobBackground(jobId, videoPath, sourceLanguage, targetLang
         updatedAt: FieldValue.serverTimestamp()
       });
     }
-    
-    // Clean up uploaded video file
+
     try {
       fs.unlinkSync(videoPath);
     } catch (err) {
-      console.warn('Failed to delete uploaded file:', err.message);
+      log.warn(`Failed to delete uploaded file: ${err.message}`);
     }
-    
-    // Mark job as completed
+
     await updateJobStatus(jobId, 'completed');
-    console.log(`[${jobId}] Job complete in ${result.metrics?.total_duration}s\n`);
-    
+    log.job(jobId, `Complete  ${result.metrics?.total_duration}s`);
+
   } catch (error) {
-    console.error(`[${jobId}] Job failed:`, error.message);
+    log.error(`Job ${jobId} failed: ${error.message}`);
     await updateJobStatus(jobId, 'failed', error.message);
   }
 }
@@ -229,27 +222,23 @@ async function processJobBackground(jobId, videoPath, sourceLanguage, targetLang
  */
 async function processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, targetLanguages) {
   try {
-    console.log(`\nProcessing job: ${jobId}`);
+    log.job(jobId, 'Starting background processing (URL)');
     await updateJobStatus(jobId, 'processing');
-    
-    // Use shared processor
+
     const result = await processDubbingJobFromUrl({
       jobId,
       videoUrl,
       sourceLanguage,
       targetLanguages,
       onProgress: async (stage, language) => {
-        console.log(`[${jobId}] ${stage}${language ? ` [${language}]` : ''}`);
+        log.job(jobId, `${stage}${language ? `  [${language}]` : ''}`);
       }
     });
-    
-    // Update Firestore with all completed results
+
     for (const [language, langResult] of Object.entries(result.results)) {
       await updateJobResult(jobId, language, langResult);
-      console.log(`✓ Job result updated: ${jobId} [${language}]`);
     }
-    
-    // Save metrics to Firestore
+
     if (result.metrics) {
       const { db } = require('../../shared/services/firebaseService');
       const { FieldValue } = require('firebase-admin/firestore');
@@ -258,13 +247,12 @@ async function processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, targ
         updatedAt: FieldValue.serverTimestamp()
       });
     }
-    
-    // Mark job as completed
+
     await updateJobStatus(jobId, 'completed');
-    console.log(`[${jobId}] Job complete in ${result.metrics?.total_duration}s\n`);
-    
+    log.job(jobId, `Complete  ${result.metrics?.total_duration}s`);
+
   } catch (error) {
-    console.error(`[${jobId}] Job failed:`, error.message);
+    log.error(`Job ${jobId} failed: ${error.message}`);
     await updateJobStatus(jobId, 'failed', error.message);
   }
 }

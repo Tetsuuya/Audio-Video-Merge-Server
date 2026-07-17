@@ -48,6 +48,7 @@
 const { exec } = require('child_process');
 const path = require('path');
 const util = require('util');
+const log = require('../../shared/utils/logger');
 
 const execPromise = util.promisify(exec);
 
@@ -62,14 +63,14 @@ async function mergeAudioVideo(videoPath, audioPath, outputPath) {
   // ffmpeg command: replace audio track, copy video stream, trim to shortest
   const command = `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 -shortest -y "${outputPath}"`;
   
-  console.log(`Running ffmpeg: ${command}`);
+  log.step(`FFmpeg merge: ${path.basename(videoPath)} + ${path.basename(audioPath)}`);
   
   try {
     const { stdout, stderr } = await execPromise(command);
-    console.log('✓ ffmpeg completed successfully');
+    log.success('FFmpeg merge complete');
     return outputPath;
   } catch (error) {
-    console.error('✗ ffmpeg failed:', error.message);
+    log.error(`FFmpeg merge failed: ${error.message}`);
     throw new Error(`ffmpeg merge failed: ${error.message}`);
   }
 }
@@ -86,7 +87,7 @@ async function getDuration(filePath) {
     const { stdout } = await execPromise(command);
     return parseFloat(stdout.trim());
   } catch (error) {
-    console.error('Failed to get duration:', error.message);
+    log.warn(`Failed to get duration for ${path.basename(filePath)}: ${error.message}`);
     return 0;
   }
 }
@@ -119,13 +120,13 @@ async function speedUpAudio(inputPath, outputPath, speed) {
 
   const command = `ffmpeg -y -i "${inputPath}" -filter:a "${filterStr}" "${outputPath}"`;
   
-  console.log(`Running speedUpAudio: ${command}`);
+  log.step(`Speed adjustment: ${path.basename(inputPath)}  ×${speed.toFixed(3)}`);
   
   try {
     await execPromise(command);
     return outputPath;
   } catch (error) {
-    console.error('✗ speedUpAudio failed:', error.message);
+    log.error(`Speed adjustment failed: ${error.message}`);
     throw new Error(`FFmpeg speed adjustment failed: ${error.message}`);
   }
 }
@@ -140,12 +141,12 @@ async function speedUpAudio(inputPath, outputPath, speed) {
 async function assembleAudioTimeline(segments, videoDuration, outputPath) {
   if (!segments || segments.length === 0) {
     const command = `ffmpeg -y -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -t ${videoDuration} "${outputPath}"`;
-    console.log(`Running assembleAudioTimeline (silent): ${command}`);
+    log.step(`Assembling silent audio timeline  (${videoDuration}s)`);
     try {
       await execPromise(command);
       return outputPath;
     } catch (error) {
-      console.error('✗ assembleAudioTimeline silent generation failed:', error.message);
+      log.error(`Silent timeline generation failed: ${error.message}`);
       throw new Error(`FFmpeg silent timeline generation failed: ${error.message}`);
     }
   }
@@ -167,13 +168,13 @@ async function assembleAudioTimeline(segments, videoDuration, outputPath) {
   const filterComplex = filterParts.join('; ');
   const command = `ffmpeg -y ${inputs.join(' ')} -filter_complex "${filterComplex}" -map "[outa]" -t ${videoDuration} "${outputPath}"`;
   
-  console.log(`Running assembleAudioTimeline: ${command}`);
+  log.step(`Assembling audio timeline  ${segments.length} segments  →  ${videoDuration}s`);
   
   try {
     await execPromise(command);
     return outputPath;
   } catch (error) {
-    console.error('✗ assembleAudioTimeline failed:', error.message);
+    log.error(`Audio timeline assembly failed: ${error.message}`);
     throw new Error(`FFmpeg audio timeline assembly failed: ${error.message}`);
   }
 }

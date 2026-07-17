@@ -25,23 +25,22 @@ const { initializeApp, cert, getFirestore } = require('firebase-admin/app');
 const { getFirestore: getDb } = require('firebase-admin/firestore');
 const path = require('path');
 const fs = require('fs');
+const log = require('../utils/logger');
 
 // Initialize Firebase Admin - Support both file and environment variable
 let serviceAccount;
 
 if (process.env.FIREBASE_CREDENTIALS) {
-  // Production: Use environment variable
-  console.log('Using Firebase credentials from environment variable');
+  log.info('Using Firebase credentials from environment variable');
   serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
 } else {
-  // Local: Use credentials file
   const credentialsPath = path.join(process.cwd(), 'firebase-credentials.json');
   
   if (!fs.existsSync(credentialsPath)) {
     throw new Error('Firebase credentials not found. Set FIREBASE_CREDENTIALS env var or create firebase-credentials.json');
   }
   
-  console.log('Using Firebase credentials from file');
+  log.info('Using Firebase credentials from file');
   serviceAccount = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
 }
 
@@ -71,7 +70,7 @@ async function createJob(jobId, videoUrl, sourceLanguage, targetLanguages) {
   };
 
   await db.collection('jobs').doc(jobId).set(jobData);
-  console.log(`✓ Job created in Firestore: ${jobId}`);
+  log.success(`Job created in Firestore: ${jobId}`);
   return jobData;
 }
 
@@ -95,7 +94,7 @@ async function updateJobStatus(jobId, status, error = null) {
   }
 
   await db.collection('jobs').doc(jobId).update(updates);
-  console.log(`✓ Job status updated: ${jobId} -> ${status}`);
+  log.success(`Job status updated: ${jobId}  →  ${status}`);
 }
 
 /**
@@ -108,7 +107,7 @@ async function updateJobResult(jobId, language, result) {
     [`results.${language}`]: result,
     updatedAt: FieldValue.serverTimestamp()
   });
-  console.log(`✓ Job result updated: ${jobId} [${language}]`);
+  log.success(`Job result saved: ${jobId}  [${language}]`);
 }
 
 /**
@@ -141,7 +140,7 @@ async function cleanupOldJobs(maxAgeHours = 48) {
   });
   
   await batch.commit();
-  console.log(`✓ Cleaned up ${snapshot.size} old jobs`);
+  log.success(`Cleaned up ${snapshot.size} old Firestore jobs`);
   return snapshot.size;
 }
 

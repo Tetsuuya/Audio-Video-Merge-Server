@@ -11,6 +11,7 @@ const path = require('path');
 const fs = require('fs').promises;
 
 const execPromise = promisify(exec);
+const log = require('../../shared/utils/logger');
 
 
 /**
@@ -32,8 +33,7 @@ async function extractAudio(videoPath, outputPath = null) {
     // Ensure output directory exists
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
-    console.log(`🎵 Extracting audio from: ${path.basename(videoPath)}`);
-
+    log.step(`Extracting audio from: ${path.basename(videoPath)}`);
     // FFmpeg command: Extract audio as mono 16kHz WAV
     const command = `ffmpeg -i "${videoPath}" -vn -ar 16000 -ac 1 -acodec pcm_s16le "${outputPath}" -y`;
 
@@ -43,12 +43,12 @@ async function extractAudio(videoPath, outputPath = null) {
     // Verify output file was created
     const stats = await fs.stat(outputPath);
     
-    console.log(`✓ Audio extracted: ${path.basename(outputPath)} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
+    log.success(`Audio extracted: ${path.basename(outputPath)}  (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
 
     return outputPath;
 
   } catch (error) {
-    console.error('Audio extraction failed:', error.message);
+    log.error(`Audio extraction failed: ${error.message}`);
     throw new Error(`Failed to extract audio: ${error.message}`);
   }
 }
