@@ -11,7 +11,7 @@ const { extractAudio } = require('./audioExtractionService');
 const { transcribeAudio } = require('./transcriptionService');
 const { translateText, translateTexts } = require('./translationService');
 const { generateSpeech } = require('./ttsService');
-const { mergeAudioVideo, speedUpAudio, assembleAudioTimeline, getDuration } = require('../../merge-only/services/ffmpegService');
+const { mergeAudioVideo, speedUpAudio, assembleAudioTimeline, getDuration, trimAudio } = require('../../merge-only/services/ffmpegService');
 const { downloadVideo } = require('../../merge-only/services/downloadService');
 const { uploadVideo } = require('../../shared/services/r2Service');
 
@@ -139,23 +139,41 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
         for (let i = 0; i < segmentsWithTts.length; i++) {
           const seg = segmentsWithTts[i];
           const actualDuration = await getDuration(seg.rawTtsPath);
-          const targetDuration = seg.duration;
-          
+
+          // Calculate the available slot: from this segment's start to the next segment's start.
+          // This guarantees no overlap regardless of how long TTS produced.
+          const nextSegStart = i < segmentsWithTts.length - 1
+            ? segmentsWithTts[i + 1].start
+            : videoDuration;
+          const availableSlot = nextSegStart - seg.start;
+          const targetDuration = Math.max(availableSlot, 0.1); // never zero
+
           let finalTtsPath = seg.rawTtsPath;
-          
-          if (actualDuration > targetDuration && targetDuration > 0) {
+
+          if (actualDuration > targetDuration) {
             const speed = actualDuration / targetDuration;
-            const cappedSpeed = Math.min(2.0, speed);
-            
-            log.detail(`Seg ${i}: actual=${actualDuration.toFixed(2)}s  target=${targetDuration.toFixed(2)}s  speed=${speed.toFixed(2)}x (capped ${cappedSpeed.toFixed(2)}x)`)            
+
+            log.detail(`Seg ${i}: actual=${actualDuration.toFixed(2)}s  slot=${targetDuration.toFixed(2)}s  speed=${speed.toFixed(2)}x`);
+
             const speedPath = path.join(process.cwd(), 'temp', `seg_${jobId}_${targetLang}_${i}_speed.wav`);
-            await speedUpAudio(seg.rawTtsPath, speedPath, cappedSpeed);
+            await speedUpAudio(seg.rawTtsPath, speedPath, speed);
             langTempFiles.push(speedPath);
-            finalTtsPath = speedPath;
+
+            // If speed ratio was extreme (>3x), trim to slot as a hard guarantee
+            const finalDuration = await getDuration(speedPath);
+            if (finalDuration > targetDuration + 0.05) {
+              const trimPath = path.join(process.cwd(), 'temp', `seg_${jobId}_${targetLang}_${i}_trim.wav`);
+              await trimAudio(speedPath, trimPath, targetDuration);
+              langTempFiles.push(trimPath);
+              finalTtsPath = trimPath;
+              log.detail(`Seg ${i}: trimmed to ${targetDuration.toFixed(2)}s to prevent overlap`);
+            } else {
+              finalTtsPath = speedPath;
+            }
           } else {
-            log.detail(`Seg ${i}: actual=${actualDuration.toFixed(2)}s  target=${targetDuration.toFixed(2)}s  ok`);
+            log.detail(`Seg ${i}: actual=${actualDuration.toFixed(2)}s  slot=${targetDuration.toFixed(2)}s  ok`);
           }
-          
+
           adjustedSegments.push({
             filePath: finalTtsPath,
             start: seg.start

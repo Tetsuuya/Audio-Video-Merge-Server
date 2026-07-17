@@ -179,9 +179,31 @@ async function assembleAudioTimeline(segments, videoDuration, outputPath) {
   }
 }
 
+/**
+ * Trim audio file to a maximum duration
+ * @param {string} inputPath - Path to input audio file
+ * @param {string} outputPath - Path to output audio file
+ * @param {number} duration - Max duration in seconds
+ * @returns {Promise<string>} - Path to trimmed audio file
+ */
+async function trimAudio(inputPath, outputPath, duration) {
+  const command = `ffmpeg -y -i "${inputPath}" -t ${duration.toFixed(4)} "${outputPath}"`;
+
+  log.step(`Trimming audio to ${duration.toFixed(2)}s: ${path.basename(inputPath)}`);
+
+  try {
+    await execPromise(command);
+    return outputPath;
+  } catch (error) {
+    log.error(`Trim failed: ${error.message}`);
+    throw new Error(`FFmpeg trim failed: ${error.message}`);
+  }
+}
+
 module.exports = {
   mergeAudioVideo,
   getDuration,
   speedUpAudio,
+  trimAudio,
   assembleAudioTimeline
 };

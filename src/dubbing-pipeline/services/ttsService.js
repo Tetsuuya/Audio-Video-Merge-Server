@@ -3,20 +3,19 @@
  * 
  * Purpose: Generate speech from translated text using Kokoro TTS
  * Uses Replicate API with alphanumericuser/kokoro-82m model
+ * 
+ * Voice: af_heart (Grade A) used for all languages — best quality available
  */
 
 const Replicate = require('replicate');
 const fs = require('fs').promises;
 const path = require('path');
-const https = require('https');
-const http = require('http');
-const { getVoiceForLanguage, DEFAULT_VOICE } = require('../../config/voices');
 const log = require('../../shared/utils/logger');
 
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
 const KOKORO_MODEL = 'alphanumericuser/kokoro-82m:89b6fa84e4fa2dd6bd3a96be3e1f12827a3516c9fda8fddbac7a0be131c9a6f5';
+const GRADE_A_VOICE = 'af_heart';
 
-// Initialize Replicate client
 const replicate = new Replicate({
   auth: REPLICATE_API_TOKEN
 });
@@ -34,30 +33,6 @@ const LANGUAGE_CODE_MAP = {
 };
 
 /**
- * Download audio file from URL
- * @param {string} url - Audio file URL
- * @param {string} outputPath - Path to save audio file
- * @returns {Promise<string>} - Path to downloaded file
- */
-async function downloadAudio(url, outputPath) {
-  return new Promise((resolve, reject) => {
-    const protocol = url.startsWith('https') ? https : http;
-    const file = require('fs').createWriteStream(outputPath);
-
-    protocol.get(url, (response) => {
-      response.pipe(file);
-      file.on('finish', () => {
-        file.close();
-        resolve(outputPath);
-      });
-    }).on('error', (err) => {
-      require('fs').unlink(outputPath, () => {});
-      reject(err);
-    });
-  });
-}
-
-/**
  * Generate speech from text using Kokoro TTS
  * @param {string} text - Text to convert to speech
  * @param {string} language - Language code (e.g., 'en', 'es')
@@ -66,11 +41,9 @@ async function downloadAudio(url, outputPath) {
  */
 async function generateSpeech(text, language = 'en', outputPath = null) {
   try {
-    // Select the best voice for the target language from voices.js config
-    const voice = getVoiceForLanguage(language);
     const languageCode = LANGUAGE_CODE_MAP[language] || 'a';
 
-    log.step(`TTS  ${language.toUpperCase()}  voice=${voice}  code=${languageCode}`);
+    log.step(`TTS  ${language.toUpperCase()}  voice=${GRADE_A_VOICE}  code=${languageCode}`);
     log.detail(`Text: "${text.substring(0, 60)}..."`);
 
     const output = await replicate.run(
@@ -78,7 +51,7 @@ async function generateSpeech(text, language = 'en', outputPath = null) {
       {
         input: {
           text: text,
-          voice: voice,
+          voice: GRADE_A_VOICE,
           language_code: languageCode,
           speed: 1.0
         }
