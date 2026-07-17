@@ -10,29 +10,17 @@ const fs = require('fs').promises;
 const path = require('path');
 const https = require('https');
 const http = require('http');
+const { getVoiceForLanguage, DEFAULT_VOICE } = require('../../config/voices');
 
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
 const KOKORO_MODEL = 'alphanumericuser/kokoro-82m:89b6fa84e4fa2dd6bd3a96be3e1f12827a3516c9fda8fddbac7a0be131c9a6f5';
-const DEFAULT_VOICE = process.env.KOKORO_DEFAULT_VOICE || 'af_heart';
 
 // Initialize Replicate client
 const replicate = new Replicate({
   auth: REPLICATE_API_TOKEN
 });
 
-// Voice mapping per language (using best graded voices)
-const VOICE_MAP = {
-  'en': 'af_heart',     // Grade A (best overall)
-  'es': 'af_heart',     // Use same high-quality voice
-  'fr': 'af_heart',     // Use same high-quality voice
-  'it': 'af_heart',     // Use same high-quality voice
-  'pt': 'af_heart',     // Use same high-quality voice
-  'ja': 'af_heart',     // Use same high-quality voice
-  'zh': 'af_heart',     // Use same high-quality voice
-  'hi': 'af_heart'      // Use same high-quality voice
-};
-
-// Language code mapping (full code to single letter)
+// Language code mapping (full code to single letter for Kokoro)
 const LANGUAGE_CODE_MAP = {
   'en': 'a',  // American English
   'es': 'e',  // Spanish
@@ -77,8 +65,8 @@ async function downloadAudio(url, outputPath) {
  */
 async function generateSpeech(text, language = 'en', outputPath = null) {
   try {
-    // Select voice based on language (using af_heart for all as per client decision)
-    const voice = VOICE_MAP[language] || DEFAULT_VOICE;
+    // Select the best voice for the target language from voices.js config
+    const voice = getVoiceForLanguage(language);
     const languageCode = LANGUAGE_CODE_MAP[language] || 'a'; // Default to American English
     
     console.log(`🎙️  Generating speech for language: ${language}`);
