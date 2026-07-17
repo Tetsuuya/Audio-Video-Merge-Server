@@ -33,9 +33,19 @@ Queues a dubbing job using a publicly accessible video URL. Returns a `jobId` im
   {
     "videoUrl": "https://example.com/video.mp4",
     "sourceLanguage": "es",
-    "targetLanguages": ["en", "fr"]
+    "targetLanguages": ["en", "fr"],
+    "ttsEngine": "kokoro",
+    "fishVoiceId": null
   }
   ```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `videoUrl` | string | Yes | Publicly accessible URL to the video file |
+| `sourceLanguage` | string | Yes | Language code of the original video (e.g. `"en"`, `"es"`) |
+| `targetLanguages` | string[] | Yes | Target language codes to dub into |
+| `ttsEngine` | string | No | `"kokoro"` (default) or `"fish"` |
+| `fishVoiceId` | string | No | Fish Audio voice model ID. Required when `ttsEngine` is `"fish"` and no default is configured |
 * **Response (202 Accepted):**
   ```json
   {
@@ -56,9 +66,14 @@ Queues a dubbing job by uploading a video file directly to the server. Returns a
 * **Path:** `/api/dubbing/async/upload`
 * **Content-Type:** `multipart/form-data`
 * **Form Fields:**
-  * `video` (File binary, max 500MB)
-  * `sourceLanguage` (String, e.g. `"es"`)
-  * `targetLanguages` (JSON string array, e.g. `["en", "fr"]`)
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `video` | File | Yes | Video file binary (max 500MB) |
+| `sourceLanguage` | string | Yes | Language code of the original video |
+| `targetLanguages` | string | Yes | JSON string array e.g. `["en", "fr"]` |
+| `ttsEngine` | string | No | `"kokoro"` (default) or `"fish"` |
+| `fishVoiceId` | string | No | Fish Audio voice model ID |
 * **Response (202 Accepted):**
   ```json
   {

@@ -11,6 +11,7 @@ const { extractAudio } = require('./audioExtractionService');
 const { transcribeAudio } = require('./transcriptionService');
 const { translateText, translateTexts } = require('./translationService');
 const { generateSpeech } = require('./ttsService');
+const { generateSpeechFish } = require('./fishAudioService');
 const { mergeAudioVideo, speedUpAudio, assembleAudioTimeline, getDuration, trimAudio } = require('../../merge-only/services/ffmpegService');
 const { downloadVideo } = require('../../merge-only/services/downloadService');
 const { uploadVideo } = require('../../shared/services/r2Service');
@@ -74,7 +75,7 @@ function groupWordsIntoSentences(words) {
  * @param {Function} options.onProgress - Optional progress callback
  * @returns {Object} Processing results
  */
-async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLanguages, onProgress }) {
+async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLanguages, ttsEngine = 'kokoro', fishVoiceId = null, onProgress }) {
   const startTime = Date.now();
   const results = {};
   const timings = {}; // per-language timing breakdowns
@@ -106,7 +107,7 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
       try {
         if (onProgress) onProgress('processing', targetLang);
         
-        log.section(`Processing language: ${targetLang.toUpperCase()}`);
+        log.section(`Processing language: ${targetLang.toUpperCase()}  [engine=${ttsEngine}]`);
         
         let translatedSegments = [];
         if (segments.length > 0) {
@@ -124,12 +125,11 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
         const tTts = Date.now();
         const ttsPromises = translatedSegments.map(async (seg, idx) => {
           const tempOutPath = path.join(process.cwd(), 'temp', `seg_${jobId}_${targetLang}_${idx}_orig.wav`);
-          const generatedPath = await generateSpeech(seg.translatedText, targetLang, tempOutPath);
+          const generatedPath = ttsEngine === 'fish'
+            ? await generateSpeechFish(seg.translatedText, targetLang, tempOutPath, fishVoiceId)
+            : await generateSpeech(seg.translatedText, targetLang, tempOutPath);
           langTempFiles.push(generatedPath);
-          return {
-            ...seg,
-            rawTtsPath: generatedPath
-          };
+          return { ...seg, rawTtsPath: generatedPath };
         });
         
         const segmentsWithTts = await Promise.all(ttsPromises);
@@ -277,10 +277,9 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
 /**
  * Process job from video URL
  */
-async function processDubbingJobFromUrl({ jobId, videoUrl, sourceLanguage, targetLanguages, onProgress }) {
-  // Download video if URL
+async function processDubbingJobFromUrl({ jobId, videoUrl, sourceLanguage, targetLanguages, ttsEngine = 'kokoro', fishVoiceId = null, onProgress }) {
   let videoPath;
-  
+
   if (videoUrl.startsWith('http')) {
     if (onProgress) onProgress('downloading');
     videoPath = await downloadVideo(videoUrl, jobId);
@@ -290,9 +289,8 @@ async function processDubbingJobFromUrl({ jobId, videoUrl, sourceLanguage, targe
       throw new Error('File not found: ' + videoPath);
     }
   }
-  
-  // Process the video
-  return processDubbingJob({ jobId, videoPath, sourceLanguage, targetLanguages, onProgress });
+
+  return processDubbingJob({ jobId, videoPath, sourceLanguage, targetLanguages, ttsEngine, fishVoiceId, onProgress });
 }
 
 module.exports = {

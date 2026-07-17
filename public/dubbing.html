@@ -47,19 +47,15 @@
     cursor: pointer;
     font-size: 14px;
   }
-  button:hover {
-    background: #0056b3;
-  }
-  button:disabled {
-    background: #6c757d;
-    cursor: not-allowed;
-  }
+  button:hover { background: #0056b3; }
+  button:disabled { background: #6c757d; cursor: not-allowed; }
   input[type="text"], select, textarea {
     font-size: 13px;
     width: 100%;
     padding: 6px 8px;
     border: 1px solid #ccc;
     border-radius: 4px;
+    box-sizing: border-box;
   }
   .checkbox-group {
     display: grid;
@@ -71,9 +67,7 @@
     display: flex;
     align-items: center;
   }
-  .checkbox-item input {
-    margin-right: 6px;
-  }
+  .checkbox-item input { margin-right: 6px; }
   .note {
     background: #fff3cd;
     border: 1px solid #ffc107;
@@ -82,6 +76,34 @@
     margin-top: 15px;
     font-size: 13px;
   }
+  .engine-box {
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-top: 8px;
+    background: #fafafa;
+  }
+  .engine-row {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+  .engine-row label { font-size: 14px; cursor: pointer; }
+  #fishOptions {
+    margin-top: 10px;
+    display: none;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    margin-left: 6px;
+    font-weight: 600;
+    vertical-align: middle;
+  }
+  .badge-green { background: #d4edda; color: #155724; }
+  .badge-blue  { background: #cce5ff; color: #004085; }
 </style>
 </head>
 <body>
@@ -95,9 +117,10 @@
     <h2>Full Dubbing Pipeline (Async)</h2>
     <p style="font-size: 13px; color: #666;">Transcribe → Translate → Generate Speech → Merge</p>
 
+    <!-- Video source -->
     <p>
       <input type="radio" name="videoMode" id="videoModeUrl" value="url" checked onchange="toggleVideoMode()">
-      <label for="videoModeUrl">Video URL/Path</label>
+      <label for="videoModeUrl">Video URL</label>
       &nbsp;&nbsp;
       <input type="radio" name="videoMode" id="videoModeUpload" value="upload" onchange="toggleVideoMode()">
       <label for="videoModeUpload">Upload Video</label>
@@ -105,8 +128,8 @@
 
     <div id="videoUrlSection">
       <p>
-        <label for="videoUrl">Video URL or Path:</label>
-        <input type="text" id="videoUrl" placeholder="https://example.com/video.mp4 or C:/path/to/video.mp4">
+        <label for="videoUrl">Video URL:</label>
+        <input type="text" id="videoUrl" placeholder="https://example.com/video.mp4">
       </p>
     </div>
 
@@ -117,6 +140,7 @@
       </p>
     </div>
 
+    <!-- Source language -->
     <p>
       <label for="sourceLanguage">Source Language:</label>
       <select id="sourceLanguage">
@@ -132,40 +156,45 @@
       </select>
     </p>
 
+    <!-- Target languages -->
     <p>
-      <label>Target Languages (select one or more):</label>
+      <label>Target Languages:</label>
       <div class="checkbox-group">
-        <div class="checkbox-item">
-          <input type="checkbox" id="lang-en" value="en">
-          <label for="lang-en">English</label>
+        <div class="checkbox-item"><input type="checkbox" id="lang-en" value="en"><label for="lang-en">English</label></div>
+        <div class="checkbox-item"><input type="checkbox" id="lang-es" value="es"><label for="lang-es">Spanish</label></div>
+        <div class="checkbox-item"><input type="checkbox" id="lang-fr" value="fr"><label for="lang-fr">French</label></div>
+        <div class="checkbox-item"><input type="checkbox" id="lang-it" value="it"><label for="lang-it">Italian</label></div>
+        <div class="checkbox-item"><input type="checkbox" id="lang-pt" value="pt"><label for="lang-pt">Portuguese</label></div>
+        <div class="checkbox-item"><input type="checkbox" id="lang-hi" value="hi"><label for="lang-hi">Hindi</label></div>
+        <div class="checkbox-item"><input type="checkbox" id="lang-ja" value="ja"><label for="lang-ja">Japanese ⚠️</label></div>
+        <div class="checkbox-item"><input type="checkbox" id="lang-zh" value="zh"><label for="lang-zh">Chinese ⚠️</label></div>
+      </div>
+      <small style="color:#888;">⚠️ Japanese and Chinese are not supported as TTS targets</small>
+    </p>
+
+    <!-- TTS Engine -->
+    <p>
+      <label><strong>TTS Engine:</strong></label>
+      <div class="engine-box">
+        <div class="engine-row">
+          <label>
+            <input type="radio" name="ttsEngine" value="kokoro" checked onchange="toggleEngine()">
+            Kokoro (Replicate)
+            <span class="badge badge-green">Grade A</span>
+            <span class="badge badge-blue">Default</span>
+          </label>
+          <label>
+            <input type="radio" name="ttsEngine" value="fish" onchange="toggleEngine()">
+            Fish Audio
+            <span class="badge badge-blue">Voice Cloning</span>
+          </label>
         </div>
-        <div class="checkbox-item">
-          <input type="checkbox" id="lang-es" value="es">
-          <label for="lang-es">Spanish</label>
-        </div>
-        <div class="checkbox-item">
-          <input type="checkbox" id="lang-fr" value="fr">
-          <label for="lang-fr">French</label>
-        </div>
-        <div class="checkbox-item">
-          <input type="checkbox" id="lang-it" value="it">
-          <label for="lang-it">Italian</label>
-        </div>
-        <div class="checkbox-item">
-          <input type="checkbox" id="lang-pt" value="pt">
-          <label for="lang-pt">Portuguese</label>
-        </div>
-        <div class="checkbox-item">
-          <input type="checkbox" id="lang-hi" value="hi">
-          <label for="lang-hi">Hindi</label>
-        </div>
-        <div class="checkbox-item">
-          <input type="checkbox" id="lang-ja" value="ja">
-          <label for="lang-ja">Japanese</label>
-        </div>
-        <div class="checkbox-item">
-          <input type="checkbox" id="lang-zh" value="zh">
-          <label for="lang-zh">Chinese</label>
+
+        <div id="fishOptions">
+          <p style="margin: 10px 0 4px;">
+            <label for="fishVoiceId">Fish Audio Voice ID <small style="color:#888;">(leave blank to use .env default)</small>:</label>
+            <input type="text" id="fishVoiceId" placeholder="e.g. 9f0465b5f2a34defbd25e9cf29cb3c23">
+          </p>
         </div>
       </div>
     </p>
@@ -173,7 +202,8 @@
     <button type="button" id="dubbingBtn">Submit Dubbing Job</button>
 
     <div class="note">
-      <strong>Note:</strong> Processing takes 30-60 seconds per language. You can close this page and check status later using the jobId.
+      <strong>Note:</strong> Processing takes 30–60s per language with Kokoro. Fish Audio may vary.
+      You can close this page and check status later using the jobId.
     </div>
 
   </div>
@@ -187,7 +217,6 @@
 </div>
 
 <script>
-// Dynamically detect server URL (works in both local and production)
 const SERVER = window.location.origin;
 const output = document.getElementById('output');
 const videoLinks = document.getElementById('videoLinks');
@@ -198,92 +227,84 @@ function toggleVideoMode() {
   document.getElementById('videoUploadSection').style.display = mode === 'upload' ? 'block' : 'none';
 }
 
+function toggleEngine() {
+  const engine = document.querySelector('input[name="ttsEngine"]:checked').value;
+  document.getElementById('fishOptions').style.display = engine === 'fish' ? 'block' : 'none';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   const dubbingBtn = document.getElementById('dubbingBtn');
-  
+
   dubbingBtn.addEventListener('click', async function(e) {
     e.preventDefault();
-    
+
     const mode = document.querySelector('input[name="videoMode"]:checked').value;
     const sourceLanguage = document.getElementById('sourceLanguage').value;
-    
-    // Get selected target languages
+    const ttsEngine = document.querySelector('input[name="ttsEngine"]:checked').value;
+    const fishVoiceId = document.getElementById('fishVoiceId').value.trim();
+
     const targetLanguages = [];
     document.querySelectorAll('.checkbox-item input[type="checkbox"]:checked').forEach(cb => {
       targetLanguages.push(cb.value);
     });
-    
-    if (!sourceLanguage) {
-      output.textContent = 'Please select a source language.';
-      return;
-    }
-    
-    if (targetLanguages.length === 0) {
-      output.textContent = 'Please select at least one target language.';
-      return;
-    }
-    
-    output.textContent = `Submitting job: ${sourceLanguage} → ${targetLanguages.join(', ')}...\nEstimated time: ${targetLanguages.length * 30}-${targetLanguages.length * 60} seconds...`;
+
+    if (!sourceLanguage) { output.textContent = 'Please select a source language.'; return; }
+    if (targetLanguages.length === 0) { output.textContent = 'Please select at least one target language.'; return; }
+
+    output.textContent = `Submitting job: ${sourceLanguage} → ${targetLanguages.join(', ')}  [engine: ${ttsEngine}]\nEstimated time: ${targetLanguages.length * 30}–${targetLanguages.length * 60}s...`;
     videoLinks.style.display = 'none';
     dubbingBtn.disabled = true;
     dubbingBtn.textContent = 'Processing...';
-    
+
     try {
       let response;
-      
+
       if (mode === 'url') {
-        // URL/Path mode
         const videoUrl = document.getElementById('videoUrl').value.trim();
-        
         if (!videoUrl) {
-          output.textContent = 'Please provide a video URL or path.';
+          output.textContent = 'Please provide a video URL.';
           dubbingBtn.disabled = false;
           dubbingBtn.textContent = 'Submit Dubbing Job';
           return;
         }
-        
-        const body = {
-          videoUrl,
-          sourceLanguage,
-          targetLanguages
-        };
-        
-        response = await fetch(SERVER + `/api/dubbing/async/single`, {
+
+        const body = { videoUrl, sourceLanguage, targetLanguages, ttsEngine };
+        if (ttsEngine === 'fish' && fishVoiceId) body.fishVoiceId = fishVoiceId;
+
+        response = await fetch(SERVER + '/api/dubbing/async/single', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         });
+
       } else {
-        // Upload mode
         const videoFile = document.getElementById('videoFile').files[0];
-        
         if (!videoFile) {
           output.textContent = 'Please select a video file.';
           dubbingBtn.disabled = false;
           dubbingBtn.textContent = 'Submit Dubbing Job';
           return;
         }
-        
+
         const formData = new FormData();
         formData.append('video', videoFile);
         formData.append('sourceLanguage', sourceLanguage);
         formData.append('targetLanguages', JSON.stringify(targetLanguages));
-        
-        response = await fetch(SERVER + `/api/dubbing/async/upload`, {
+        formData.append('ttsEngine', ttsEngine);
+        if (ttsEngine === 'fish' && fishVoiceId) formData.append('fishVoiceId', fishVoiceId);
+
+        response = await fetch(SERVER + '/api/dubbing/async/upload', {
           method: 'POST',
           body: formData
         });
       }
-      
+
       const result = await response.json();
-      
-      // Show job submission result
       output.textContent = JSON.stringify(result, null, 2);
       output.textContent += '\n\nPolling for status...';
-      
-      // Poll for status
+
       await pollJobStatus(result.jobId);
-      
+
     } catch (err) {
       output.textContent = 'Error: ' + err.message;
     } finally {
@@ -294,18 +315,18 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 async function pollJobStatus(jobId) {
-  const maxAttempts = 60; // 5 minutes
+  const maxAttempts = 60;
   let attempts = 0;
-  
+
   while (attempts < maxAttempts) {
-    await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
-    
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
     try {
       const response = await fetch(SERVER + `/api/dubbing/async/status/${jobId}`);
       const status = await response.json();
-      
+
       output.textContent = JSON.stringify(status, null, 2);
-      
+
       if (status.status === 'completed') {
         showVideoLinks(status.results);
         break;
@@ -315,7 +336,7 @@ async function pollJobStatus(jobId) {
       } else {
         output.textContent += '\n\nStatus: ' + status.status + ' (checking again in 5s...)';
       }
-      
+
       attempts++;
     } catch (err) {
       output.textContent += '\n\nError checking status: ' + err.message;
@@ -325,17 +346,16 @@ async function pollJobStatus(jobId) {
 }
 
 function showVideoLinks(languages) {
-  let html = '<strong>✓ Dubbing Complete!</strong><br><br>';
-  html += '<strong>Download Videos:</strong><br>';
-  
+  let html = '<strong>✓ Dubbing Complete!</strong><br><br><strong>Download Videos:</strong><br>';
+
   for (const [lang, result] of Object.entries(languages)) {
     if (result.success && result.video) {
       html += `<a href="${result.video}" target="_blank">${lang.toUpperCase()}: ${result.video}</a>`;
     } else if (result.error) {
-      html += `<span style="color: #dc3545;">${lang.toUpperCase()}: ${result.error}</span><br>`;
+      html += `<span style="color:#dc3545;">${lang.toUpperCase()}: ${result.error}</span><br>`;
     }
   }
-  
+
   videoLinks.innerHTML = html;
   videoLinks.style.display = 'block';
 }

@@ -20,7 +20,7 @@ const SUPPORTED_LANGUAGES = ['en', 'es', 'fr', 'it', 'pt', 'hi'];
  */
 router.post('/upload', upload.single('video'), async (req, res) => {
   try {
-    const { sourceLanguage } = req.body;
+    const { sourceLanguage, ttsEngine = 'kokoro', fishVoiceId = null } = req.body;
     const targetLanguages = JSON.parse(req.body.targetLanguages || '[]');
     const videoFile = req.file;
     
@@ -46,10 +46,10 @@ router.post('/upload', upload.single('video'), async (req, res) => {
     // Create job in Firestore
     await createJob(jobId, videoFile.originalname, sourceLanguage, targetLanguages);
     
-    log.job(jobId, `Created  ${sourceLanguage.toUpperCase()} → [${targetLanguages.map(l => l.toUpperCase()).join(', ')}]`);
+    log.job(jobId, `Created  ${sourceLanguage.toUpperCase()} → [${targetLanguages.map(l => l.toUpperCase()).join(', ')}]  engine=${ttsEngine}`);
     
     // Start background processing (don't await)
-    processJobBackground(jobId, videoFile.path, sourceLanguage, targetLanguages).catch(err => {
+    processJobBackground(jobId, videoFile.path, sourceLanguage, targetLanguages, ttsEngine, fishVoiceId).catch(err => {
       log.error(`Job ${jobId} failed: ${err.message}`);
       updateJobStatus(jobId, 'failed', err.message);
     });
@@ -76,7 +76,7 @@ router.post('/upload', upload.single('video'), async (req, res) => {
  */
 router.post('/single', async (req, res) => {
   try {
-    const { videoUrl, sourceLanguage, targetLanguages } = req.body;
+    const { videoUrl, sourceLanguage, targetLanguages, ttsEngine = 'kokoro', fishVoiceId = null } = req.body;
     
     // Support both single targetLanguage and multiple targetLanguages
     let languages = [];
@@ -106,10 +106,10 @@ router.post('/single', async (req, res) => {
     // Create job in Firestore
     await createJob(jobId, videoUrl, sourceLanguage, languages);
     
-    log.job(jobId, `Created  ${sourceLanguage.toUpperCase()} → [${languages.map(l => l.toUpperCase()).join(', ')}]`);
+    log.job(jobId, `Created  ${sourceLanguage.toUpperCase()} → [${languages.map(l => l.toUpperCase()).join(', ')}]  engine=${ttsEngine}`);
     
     // Start background processing (don't await)
-    processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, languages).catch(err => {
+    processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, languages, ttsEngine, fishVoiceId).catch(err => {
       log.error(`Job ${jobId} failed: ${err.message}`);
       updateJobStatus(jobId, 'failed', err.message);
     });
@@ -174,7 +174,7 @@ router.get('/status/:jobId', async (req, res) => {
 /**
  * Background processing function
  */
-async function processJobBackground(jobId, videoPath, sourceLanguage, targetLanguages) {
+async function processJobBackground(jobId, videoPath, sourceLanguage, targetLanguages, ttsEngine = 'kokoro', fishVoiceId = null) {
   try {
     log.job(jobId, 'Starting background processing');
     await updateJobStatus(jobId, 'processing');
@@ -184,6 +184,8 @@ async function processJobBackground(jobId, videoPath, sourceLanguage, targetLang
       videoPath,
       sourceLanguage,
       targetLanguages,
+      ttsEngine,
+      fishVoiceId,
       onProgress: async (stage, language) => {
         log.job(jobId, `${stage}${language ? `  [${language}]` : ''}`);
       }
@@ -220,7 +222,7 @@ async function processJobBackground(jobId, videoPath, sourceLanguage, targetLang
 /**
  * Background processing function for URL-based videos
  */
-async function processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, targetLanguages) {
+async function processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, targetLanguages, ttsEngine = 'kokoro', fishVoiceId = null) {
   try {
     log.job(jobId, 'Starting background processing (URL)');
     await updateJobStatus(jobId, 'processing');
@@ -230,6 +232,8 @@ async function processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, targ
       videoUrl,
       sourceLanguage,
       targetLanguages,
+      ttsEngine,
+      fishVoiceId,
       onProgress: async (stage, language) => {
         log.job(jobId, `${stage}${language ? `  [${language}]` : ''}`);
       }
