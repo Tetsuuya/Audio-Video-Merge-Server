@@ -82,7 +82,11 @@ Polls the progress and gets the results of a queued job.
   {
     "success": true,
     "jobId": "job_1784198042093",
-    "status": "processing"
+    "status": "processing",
+    "sourceLanguage": "es",
+    "targetLanguages": ["en"],
+    "createdAt": { "_seconds": 1784198043, "_nanoseconds": 29000000 },
+    "updatedAt": { "_seconds": 1784198080, "_nanoseconds": 112000000 }
   }
   ```
 * **Response (When Completed):**
@@ -94,6 +98,7 @@ Polls the progress and gets the results of a queued job.
     "sourceLanguage": "es",
     "targetLanguages": ["en"],
     "createdAt": { "_seconds": 1784198043, "_nanoseconds": 29000000 },
+    "updatedAt": { "_seconds": 1784198140, "_nanoseconds": 398000000 },
     "completedAt": { "_seconds": 1784198140, "_nanoseconds": 398000000 },
     "results": {
       "en": {
@@ -116,10 +121,95 @@ Polls the progress and gets the results of a queued job.
     }
   }
   ```
+* **Response (When Failed):**
+  ```json
+  {
+    "success": true,
+    "jobId": "job_1784198042093",
+    "status": "failed",
+    "sourceLanguage": "es",
+    "targetLanguages": ["en"],
+    "createdAt": { "_seconds": 1784198043, "_nanoseconds": 29000000 },
+    "updatedAt": { "_seconds": 1784198080, "_nanoseconds": 112000000 },
+    "error": "Failed to download video: 404 Not Found"
+  }
+  ```
+
+---
+
+### Error Responses
+
+**Unsupported target language (400):**
+```json
+{
+  "success": false,
+  "error": "Unsupported languages: ja, zh. Supported: en, es, fr, it, pt, hi"
+}
+```
+
+**Missing required fields (400):**
+```json
+{
+  "success": false,
+  "error": "Missing required fields"
+}
+```
+
+**Job not found (404):**
+```json
+{
+  "success": false,
+  "error": "Job not found"
+}
+```
+
+**Server error (500):**
+```json
+{
+  "success": false,
+  "error": "Internal server error message"
+}
+```
 
 ---
 
 ## Supported Languages
 
-* **Source:** Any major language (AssemblyAI auto-detects)
+* **Source:** Pass the language code of the original video explicitly (e.g. `"en"`, `"es"`, `"fr"`). AssemblyAI supports most major languages — see the [AssemblyAI docs](https://www.assemblyai.com/docs) for the full list.
 * **Targets (Kokoro TTS):** `en`, `es`, `fr`, `it`, `pt`, `hi`
+* **Not supported as targets:** `ja` (Japanese) and `zh` (Mandarin) — the Replicate deployment of Kokoro-82M is missing required tokenizer dependencies for these languages. Passing them will return a 400 error.
+
+---
+
+## Estimated Time
+
+The `estimatedTime` field in the job submission response scales with the number of target languages:
+
+```
+estimatedTime = (numberOfLanguages × 30s) to (numberOfLanguages × 60s)
+```
+
+Examples:
+* 1 language → `"30-60s"`
+* 2 languages → `"60-120s"`
+* 3 languages → `"90-180s"`
+
+The majority of processing time is spent on TTS generation (~60s per language on average).
+
+---
+
+## Metrics Fields
+
+All duration values are in **seconds** (float).
+
+| Field | Description |
+|---|---|
+| `total_duration` | Total wall-clock time for the entire job |
+| `extraction_duration` | Time to extract audio from the video using FFmpeg |
+| `transcription_duration` | Time to upload audio and receive transcript from AssemblyAI |
+| `translation_duration` | Time to translate all segments via DeepL |
+| `tts_duration` | Time to generate all TTS audio clips via Replicate/Kokoro |
+| `merge_duration` | Time to assemble and merge audio+video via FFmpeg |
+| `upload_duration` | Time to upload the final video to Cloudflare R2 |
+| `segments_count` | Number of sentence segments the transcript was split into |
+| `languages_processed` | Number of target languages that were attempted |
