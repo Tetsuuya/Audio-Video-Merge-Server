@@ -37,8 +37,11 @@ function runYtDlpCli(url, filePath, extractorArg) {
       '-o', filePath,
       '-f', 'bestvideo+bestaudio/best[ext=mp4]/best',
       '--merge-output-format', 'mp4',
+      '--force-ipv4',
       '--no-check-certificates',
       '--no-warnings',
+      '--add-header', 'Referer:https://www.youtube.com/',
+      '--add-header', 'Accept-Language:en-US,en;q=0.9',
       '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
     ];
     if (extractorArg) {
@@ -55,8 +58,13 @@ function runYtDlpCli(url, filePath, extractorArg) {
           output: filePath,
           format: 'bestvideo+bestaudio/best[ext=mp4]/best',
           mergeOutputFormat: 'mp4',
+          forceIpv4: true,
           noCheckCertificates: true,
           noWarnings: true,
+          addHeader: [
+            'Referer:https://www.youtube.com/',
+            'Accept-Language:en-US,en;q=0.9'
+          ],
           userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
         };
         if (extractorArg) ytdlpOpts.extractorArgs = extractorArg;
