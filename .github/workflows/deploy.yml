@@ -24,7 +24,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/dubbing-merge-server:latest
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/dubbing-merge-server:latest
+            ${{ secrets.DOCKER_USERNAME }}/dubbing-merge-server:${{ github.sha }}
 
       - name: Log in to Azure
         uses: azure/login@v1
@@ -62,7 +64,7 @@ jobs:
             az containerapp update \
               --name dubbing-merge-server \
               --resource-group web-scrapper-rg \
-              --image ${{ secrets.DOCKER_USERNAME }}/dubbing-merge-server:latest \
+              --image ${{ secrets.DOCKER_USERNAME }}/dubbing-merge-server:${{ github.sha }} \
               --set-env-vars \
                 PORT=8080 \
                 NODE_ENV=production \
