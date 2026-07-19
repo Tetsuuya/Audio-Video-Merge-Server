@@ -22,16 +22,18 @@ async function uploadAudio(audioPath) {
   try {
     log.step(`Uploading audio to AssemblyAI: ${path.basename(audioPath)}`);
 
-    const audioData = fs.readFileSync(audioPath);
+    const fileStream = fs.createReadStream(audioPath);
 
     const response = await axios.post(
       `${ASSEMBLYAI_BASE_URL}/upload`,
-      audioData,
+      fileStream,
       {
         headers: {
           'authorization': ASSEMBLYAI_API_KEY,
           'content-type': 'application/octet-stream'
-        }
+        },
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity
       }
     );
 

@@ -27,15 +27,15 @@ async function extractAudio(videoPath, outputPath = null) {
     if (!outputPath) {
       const videoDir = path.dirname(videoPath);
       const videoName = path.basename(videoPath, path.extname(videoPath));
-      outputPath = path.join(videoDir, `${videoName}_audio.wav`);
+      outputPath = path.join(videoDir, `${videoName}_audio.mp3`);
     }
 
     // Ensure output directory exists
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
     log.step(`Extracting audio from: ${path.basename(videoPath)}`);
-    // FFmpeg command: Extract audio as mono 16kHz WAV
-    const command = `ffmpeg -i "${videoPath}" -vn -ar 16000 -ac 1 -acodec pcm_s16le "${outputPath}" -y`;
+    // FFmpeg command: Extract audio as 44.1kHz stereo MP3 for universal AssemblyAI compatibility
+    const command = `ffmpeg -i "${videoPath}" -vn -ar 44100 -ac 2 -b:a 192k "${outputPath}" -y`;
 
     // Execute FFmpeg
     const { stdout, stderr } = await execPromise(command);
