@@ -41,7 +41,9 @@ async function downloadYouTubeVideo(url, filePath) {
       format: 'bestvideo+bestaudio/best',
       mergeOutputFormat: 'mp4',
       noCheckCertificates: true,
-      noWarnings: true
+      noWarnings: true,
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+      extractorArgs: 'youtube:player_client=android,web'
     });
 
     if (!fs.existsSync(filePath) || fs.statSync(filePath).size < 10240) {
