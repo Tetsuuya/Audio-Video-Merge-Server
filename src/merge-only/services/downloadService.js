@@ -47,7 +47,7 @@ function runYtDlpCli(url, filePath, extractorArg) {
     const args = [
       url,
       '-o', filePath,
-      '-f', 'bestvideo+bestaudio/best[ext=mp4]/best',
+      '-f', 'bestvideo+bestaudio/best',
       '--merge-output-format', 'mp4',
       '--force-ipv4',
       '--no-check-certificates',
@@ -71,7 +71,7 @@ function runYtDlpCli(url, filePath, extractorArg) {
       if (ytdlp) {
         const ytdlpOpts = {
           output: filePath,
-          format: 'bestvideo+bestaudio/best[ext=mp4]/best',
+          format: 'bestvideo+bestaudio/best',
           mergeOutputFormat: 'mp4',
           forceIpv4: true,
           noCheckCertificates: true,
