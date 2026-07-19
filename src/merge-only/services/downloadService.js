@@ -36,6 +36,8 @@ async function downloadYouTubeVideo(url, filePath) {
   }
 
   const clientStrategies = [
+    'youtube:player_client=tv_embedded,android',
+    'youtube:player_client=tv_embedded',
     'youtube:player_client=android,web',
     'youtube:player_client=ios',
     'youtube:player_client=mweb'
@@ -47,7 +49,7 @@ async function downloadYouTubeVideo(url, filePath) {
     try {
       await ytdlp(url, {
         output: filePath,
-        format: 'bestvideo+bestaudio/best',
+        format: 'bestvideo+bestaudio/best[ext=mp4]/best',
         mergeOutputFormat: 'mp4',
         noCheckCertificates: true,
         noWarnings: true,
