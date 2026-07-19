@@ -32,8 +32,15 @@ function isYouTubeOrSocialUrl(url) {
  */
 function runYtDlpCli(url, filePath, extractorArg) {
   return new Promise((resolve, reject) => {
-    const cookiesPath = path.join(__dirname, '../../cookies.txt');
-    if (!fs.existsSync(cookiesPath) && process.env.YOUTUBE_COOKIES) {
+    const possiblePaths = [
+      path.resolve(process.cwd(), 'cookies.txt'),
+      path.join(__dirname, '../../../cookies.txt'),
+      path.join(__dirname, '../../cookies.txt')
+    ];
+    let cookiesPath = possiblePaths.find(p => fs.existsSync(p));
+
+    if (!cookiesPath && process.env.YOUTUBE_COOKIES) {
+      cookiesPath = path.resolve(process.cwd(), 'cookies.txt');
       try { fs.writeFileSync(cookiesPath, process.env.YOUTUBE_COOKIES, 'utf8'); } catch (e) {}
     }
 
@@ -49,7 +56,7 @@ function runYtDlpCli(url, filePath, extractorArg) {
       '--add-header', 'Accept-Language:en-US,en;q=0.9',
       '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
     ];
-    if (fs.existsSync(cookiesPath)) {
+    if (cookiesPath && fs.existsSync(cookiesPath)) {
       args.push('--cookies', cookiesPath);
     }
     if (extractorArg) {
@@ -75,7 +82,7 @@ function runYtDlpCli(url, filePath, extractorArg) {
           ],
           userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
         };
-        if (fs.existsSync(cookiesPath)) ytdlpOpts.cookies = cookiesPath;
+        if (cookiesPath && fs.existsSync(cookiesPath)) ytdlpOpts.cookies = cookiesPath;
         if (extractorArg) ytdlpOpts.extractorArgs = extractorArg;
 
         ytdlp(url, ytdlpOpts)
