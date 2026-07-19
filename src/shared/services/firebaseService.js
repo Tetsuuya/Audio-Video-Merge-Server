@@ -98,6 +98,24 @@ async function updateJobStatus(jobId, status, error = null) {
 }
 
 /**
+ * Update job current step and progress
+ */
+async function updateJobStep(jobId, currentStep, currentLanguage = null) {
+  const { FieldValue } = require('firebase-admin/firestore');
+  
+  const updates = {
+    currentStep,
+    updatedAt: FieldValue.serverTimestamp()
+  };
+
+  if (currentLanguage) {
+    updates.currentLanguage = currentLanguage;
+  }
+
+  await db.collection('jobs').doc(jobId).update(updates);
+}
+
+/**
  * Update job results for a specific language
  */
 async function updateJobResult(jobId, language, result) {
@@ -147,6 +165,7 @@ async function cleanupOldJobs(maxAgeHours = 48) {
 module.exports = {
   createJob,
   updateJobStatus,
+  updateJobStep,
   updateJobResult,
   getJob,
   cleanupOldJobs,

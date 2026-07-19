@@ -111,6 +111,7 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
         
         let translatedSegments = [];
         if (segments.length > 0) {
+          if (onProgress) onProgress('translating', targetLang);
           const tTranslate = Date.now();
           const textsToTranslate = segments.map(s => s.text);
           const translatedTexts = await translateTexts(textsToTranslate, sourceLanguage, targetLang);
@@ -122,6 +123,7 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
           }));
         }
         
+        if (onProgress) onProgress('tts_synthesis', targetLang);
         const tTts = Date.now();
         const ttsPromises = translatedSegments.map(async (seg, idx) => {
           const tempOutPath = path.join(process.cwd(), 'temp', `seg_${jobId}_${targetLang}_${idx}_orig.wav`);
@@ -189,6 +191,7 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
         
         await fs.promises.mkdir(path.dirname(outputPath), { recursive: true });
         
+        if (onProgress) onProgress('merging', targetLang);
         const tMerge = Date.now();
         await mergeAudioVideo(videoPath, assembledAudioPath, outputPath);
         langTimings.merge = (Date.now() - tMerge) / 1000;

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { createJob, getJob, updateJobStatus, updateJobResult } = require('../../shared/services/firebaseService');
+const { createJob, getJob, updateJobStatus, updateJobStep, updateJobResult } = require('../../shared/services/firebaseService');
 const { processDubbingJob, processDubbingJobFromUrl } = require('../services/dubbingProcessor');
 const log = require('../../shared/utils/logger');
 const fs = require('fs');
@@ -13,6 +13,60 @@ const upload = multer({
 });
 
 const SUPPORTED_LANGUAGES = ['en', 'es', 'fr', 'it', 'pt', 'hi'];
+
+/**
+ * Format step timeline array for frontend progress stepper
+ */
+function buildStepsArray(currentStep, jobStatus, currentLanguage = null) {
+  const stepsList = [
+    { id: 'extract_audio', label: 'Extract audio' },
+    { id: 'transcribe', label: 'Transcribe' },
+    { id: 'translate', label: 'Translate' },
+    { id: 'tts_synthesis', label: 'TTS synthesis' },
+    { id: 'merge_video', label: 'Merge video' }
+  ];
+
+  if (jobStatus === 'completed') {
+    return stepsList.map(s => ({ ...s, status: 'completed' }));
+  }
+
+  if (jobStatus === 'failed') {
+    let activeFailIdx = 0;
+    if (currentStep === 'downloading' || currentStep === 'extracting_audio') activeFailIdx = 0;
+    else if (currentStep === 'transcribing') activeFailIdx = 1;
+    else if (currentStep === 'translating') activeFailIdx = 2;
+    else if (currentStep === 'tts_synthesis') activeFailIdx = 3;
+    else if (currentStep === 'merging') activeFailIdx = 4;
+
+    return stepsList.map((s, idx) => {
+      if (idx < activeFailIdx) return { ...s, status: 'completed' };
+      if (idx === activeFailIdx) return { ...s, status: 'failed' };
+      return { ...s, status: 'pending' };
+    });
+  }
+
+  let activeIdx = 0;
+  if (currentStep === 'downloading' || currentStep === 'extracting_audio') activeIdx = 0;
+  else if (currentStep === 'transcribing') activeIdx = 1;
+  else if (currentStep === 'translating') activeIdx = 2;
+  else if (currentStep === 'tts_synthesis') activeIdx = 3;
+  else if (currentStep === 'merging') activeIdx = 4;
+  else if (currentStep === 'completed') activeIdx = 5;
+
+  return stepsList.map((s, idx) => {
+    if (idx < activeIdx) {
+      return { ...s, status: 'completed' };
+    } else if (idx === activeIdx) {
+      return { 
+        ...s, 
+        status: 'in_progress',
+        ...(currentLanguage ? { currentLanguage } : {})
+      };
+    } else {
+      return { ...s, status: 'pending' };
+    }
+  });
+}
 
 /**
  * POST /api/dubbing/async/upload
@@ -132,7 +186,7 @@ router.post('/single', async (req, res) => {
 
 /**
  * GET /api/dubbing/async/status/:jobId
- * Check job status
+ * Check job status with granular pipeline steps
  */
 router.get('/status/:jobId', async (req, res) => {
   try {
@@ -143,12 +197,18 @@ router.get('/status/:jobId', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Job not found' });
     }
     
+    const currentStep = job.currentStep || (job.status === 'completed' ? 'completed' : 'downloading');
+    const currentLanguage = job.currentLanguage || null;
+
     const response = {
       success: true,
       jobId: job.jobId,
       status: job.status,
+      currentStep: currentStep,
+      currentLanguage: currentLanguage,
       sourceLanguage: job.sourceLanguage,
       targetLanguages: job.targetLanguages,
+      steps: buildStepsArray(currentStep, job.status, currentLanguage),
       createdAt: job.createdAt,
       updatedAt: job.updatedAt
     };
@@ -178,6 +238,7 @@ async function processJobBackground(jobId, videoPath, sourceLanguage, targetLang
   try {
     log.job(jobId, 'Starting background processing');
     await updateJobStatus(jobId, 'processing');
+    await updateJobStep(jobId, 'extracting_audio');
 
     const result = await processDubbingJob({
       jobId,
@@ -188,6 +249,7 @@ async function processJobBackground(jobId, videoPath, sourceLanguage, targetLang
       fishVoiceId,
       onProgress: async (stage, language) => {
         log.job(jobId, `${stage}${language ? `  [${language}]` : ''}`);
+        await updateJobStep(jobId, stage, language);
       }
     });
 
@@ -210,6 +272,7 @@ async function processJobBackground(jobId, videoPath, sourceLanguage, targetLang
       log.warn(`Failed to delete uploaded file: ${err.message}`);
     }
 
+    await updateJobStep(jobId, 'completed');
     await updateJobStatus(jobId, 'completed');
     log.job(jobId, `Complete  ${result.metrics?.total_duration}s`);
 
@@ -226,6 +289,7 @@ async function processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, targ
   try {
     log.job(jobId, 'Starting background processing (URL)');
     await updateJobStatus(jobId, 'processing');
+    await updateJobStep(jobId, 'downloading');
 
     const result = await processDubbingJobFromUrl({
       jobId,
@@ -236,6 +300,7 @@ async function processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, targ
       fishVoiceId,
       onProgress: async (stage, language) => {
         log.job(jobId, `${stage}${language ? `  [${language}]` : ''}`);
+        await updateJobStep(jobId, stage, language);
       }
     });
 
@@ -252,6 +317,7 @@ async function processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, targ
       });
     }
 
+    await updateJobStep(jobId, 'completed');
     await updateJobStatus(jobId, 'completed');
     log.job(jobId, `Complete  ${result.metrics?.total_duration}s`);
 
