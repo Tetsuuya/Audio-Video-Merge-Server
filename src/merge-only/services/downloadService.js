@@ -32,6 +32,11 @@ function isYouTubeOrSocialUrl(url) {
  */
 function runYtDlpCli(url, filePath, extractorArg) {
   return new Promise((resolve, reject) => {
+    const cookiesPath = path.join(__dirname, '../../cookies.txt');
+    if (!fs.existsSync(cookiesPath) && process.env.YOUTUBE_COOKIES) {
+      try { fs.writeFileSync(cookiesPath, process.env.YOUTUBE_COOKIES, 'utf8'); } catch (e) {}
+    }
+
     const args = [
       url,
       '-o', filePath,
@@ -44,6 +49,9 @@ function runYtDlpCli(url, filePath, extractorArg) {
       '--add-header', 'Accept-Language:en-US,en;q=0.9',
       '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
     ];
+    if (fs.existsSync(cookiesPath)) {
+      args.push('--cookies', cookiesPath);
+    }
     if (extractorArg) {
       args.push('--extractor-args', extractorArg);
     }
@@ -67,6 +75,7 @@ function runYtDlpCli(url, filePath, extractorArg) {
           ],
           userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
         };
+        if (fs.existsSync(cookiesPath)) ytdlpOpts.cookies = cookiesPath;
         if (extractorArg) ytdlpOpts.extractorArgs = extractorArg;
 
         ytdlp(url, ytdlpOpts)
@@ -119,9 +128,15 @@ async function downloadYouTubeVideo(url, filePath) {
     }
   }
 
-  const errorMsg = lastError ? (lastError.stderr || lastError.message) : 'Downloaded file is missing or corrupted.';
-  log.error(`yt-dlp download failed: ${errorMsg}`);
-  throw new Error(`Failed to download YouTube video: ${errorMsg}`);
+  const rawError = lastError ? (lastError.stderr || lastError.message) : 'Downloaded file is missing or corrupted.';
+  let friendlyError = rawError;
+
+  if (rawError.includes('Sign in to confirm you’re not a bot') || rawError.includes('bot')) {
+    friendlyError = 'YouTube requires anti-bot verification for cloud datacenter IPs. Please upload the video file directly or use a direct video URL (TikTok, Vimeo, MP4).';
+  }
+
+  log.error(`yt-dlp download failed: ${friendlyError}`);
+  throw new Error(`Failed to download YouTube video: ${friendlyError}`);
 }
 
 /**
