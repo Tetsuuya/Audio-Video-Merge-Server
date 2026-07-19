@@ -98,8 +98,17 @@ Polls the progress and gets the results of a queued job.
     "success": true,
     "jobId": "job_1784198042093",
     "status": "processing",
+    "currentStep": "tts_synthesis",
+    "currentLanguage": "en",
     "sourceLanguage": "es",
     "targetLanguages": ["en"],
+    "steps": [
+      { "id": "extract_audio", "label": "Extract audio", "status": "completed" },
+      { "id": "transcribe", "label": "Transcribe", "status": "completed" },
+      { "id": "translate", "label": "Translate", "status": "completed" },
+      { "id": "tts_synthesis", "label": "TTS synthesis", "status": "in_progress", "currentLanguage": "en" },
+      { "id": "merge_video", "label": "Merge video", "status": "pending" }
+    ],
     "createdAt": { "_seconds": 1784198043, "_nanoseconds": 29000000 },
     "updatedAt": { "_seconds": 1784198080, "_nanoseconds": 112000000 }
   }
@@ -110,8 +119,17 @@ Polls the progress and gets the results of a queued job.
     "success": true,
     "jobId": "job_1784198042093",
     "status": "completed",
+    "currentStep": "completed",
+    "currentLanguage": null,
     "sourceLanguage": "es",
     "targetLanguages": ["en"],
+    "steps": [
+      { "id": "extract_audio", "label": "Extract audio", "status": "completed" },
+      { "id": "transcribe", "label": "Transcribe", "status": "completed" },
+      { "id": "translate", "label": "Translate", "status": "completed" },
+      { "id": "tts_synthesis", "label": "TTS synthesis", "status": "completed" },
+      { "id": "merge_video", "label": "Merge video", "status": "completed" }
+    ],
     "createdAt": { "_seconds": 1784198043, "_nanoseconds": 29000000 },
     "updatedAt": { "_seconds": 1784198140, "_nanoseconds": 398000000 },
     "completedAt": { "_seconds": 1784198140, "_nanoseconds": 398000000 },
