@@ -1,7 +1,8 @@
 FROM node:20-alpine
 
-# Install ffmpeg and python3 (required for yt-dlp)
-RUN apk add --no-cache ffmpeg python3
+# Install ffmpeg, python3, py3-pip and official latest yt-dlp CLI
+RUN apk add --no-cache ffmpeg python3 py3-pip && \
+    pip install --no-cache-dir --break-system-packages -U yt-dlp
 
 # Set working directory
 WORKDIR /app
