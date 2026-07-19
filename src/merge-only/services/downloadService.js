@@ -35,32 +35,42 @@ async function downloadYouTubeVideo(url, filePath) {
     throw new Error('yt-dlp-exec module is not available on the server.');
   }
 
-  try {
-    await ytdlp(url, {
-      output: filePath,
-      format: 'bestvideo+bestaudio/best',
-      mergeOutputFormat: 'mp4',
-      noCheckCertificates: true,
-      noWarnings: true,
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-      extractorArgs: 'youtube:player_client=android,web'
-    });
+  const clientStrategies = [
+    'youtube:player_client=android,web',
+    'youtube:player_client=ios',
+    'youtube:player_client=mweb'
+  ];
 
-    if (!fs.existsSync(filePath) || fs.statSync(filePath).size < 10240) {
-      throw new Error('Downloaded video file is missing or corrupted (under 10KB).');
-    }
+  let lastError;
 
-    const stats = fs.statSync(filePath);
-    log.success(`Video downloaded via yt-dlp: ${path.basename(filePath)} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
-    return filePath;
-  } catch (err) {
-    if (fs.existsSync(filePath)) {
-      try { fs.unlinkSync(filePath); } catch (e) {}
+  for (const extractorArg of clientStrategies) {
+    try {
+      await ytdlp(url, {
+        output: filePath,
+        format: 'bestvideo+bestaudio/best',
+        mergeOutputFormat: 'mp4',
+        noCheckCertificates: true,
+        noWarnings: true,
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        extractorArgs: extractorArg
+      });
+
+      if (fs.existsSync(filePath) && fs.statSync(filePath).size >= 10240) {
+        const stats = fs.statSync(filePath);
+        log.success(`Video downloaded via yt-dlp: ${path.basename(filePath)} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
+        return filePath;
+      }
+    } catch (err) {
+      lastError = err;
+      if (fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch (e) {}
+      }
     }
-    const errorMsg = err.stderr || err.message;
-    log.error(`yt-dlp download failed: ${errorMsg}`);
-    throw new Error(`Failed to download YouTube video: ${errorMsg}`);
   }
+
+  const errorMsg = lastError ? (lastError.stderr || lastError.message) : 'Downloaded file is missing or corrupted.';
+  log.error(`yt-dlp download failed: ${errorMsg}`);
+  throw new Error(`Failed to download YouTube video: ${errorMsg}`);
 }
 
 /**
