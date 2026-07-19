@@ -12,7 +12,7 @@ const upload = multer({
   limits: { fileSize: 500 * 1024 * 1024 } // 500MB max
 });
 
-const SUPPORTED_LANGUAGES = ['en', 'es', 'fr', 'it', 'pt', 'hi'];
+const SUPPORTED_LANGUAGES = ['en', 'es', 'fr', 'it', 'pt', 'ja', 'tl', 'hi'];
 
 /**
  * Format step timeline array for frontend progress stepper
@@ -76,6 +76,7 @@ router.post('/upload', upload.single('video'), async (req, res) => {
   try {
     const { sourceLanguage, ttsEngine = 'kokoro', fishVoiceId = null } = req.body;
     const targetLanguages = JSON.parse(req.body.targetLanguages || '[]');
+    const voices = typeof req.body.voices === 'string' ? JSON.parse(req.body.voices) : (req.body.voices || {});
     const videoFile = req.file;
     
     if (!videoFile) {
@@ -103,7 +104,7 @@ router.post('/upload', upload.single('video'), async (req, res) => {
     log.job(jobId, `Created  ${sourceLanguage.toUpperCase()} → [${targetLanguages.map(l => l.toUpperCase()).join(', ')}]  engine=${ttsEngine}`);
     
     // Start background processing (don't await)
-    processJobBackground(jobId, videoFile.path, sourceLanguage, targetLanguages, ttsEngine, fishVoiceId).catch(err => {
+    processJobBackground(jobId, videoFile.path, sourceLanguage, targetLanguages, ttsEngine, fishVoiceId, voices).catch(err => {
       log.error(`Job ${jobId} failed: ${err.message}`);
       updateJobStatus(jobId, 'failed', err.message);
     });
@@ -131,6 +132,7 @@ router.post('/upload', upload.single('video'), async (req, res) => {
 router.post('/single', async (req, res) => {
   try {
     const { videoUrl, sourceLanguage, targetLanguages, ttsEngine = 'kokoro', fishVoiceId = null } = req.body;
+    const voices = typeof req.body.voices === 'string' ? JSON.parse(req.body.voices) : (req.body.voices || {});
     
     // Support both single targetLanguage and multiple targetLanguages
     let languages = [];
@@ -163,7 +165,7 @@ router.post('/single', async (req, res) => {
     log.job(jobId, `Created  ${sourceLanguage.toUpperCase()} → [${languages.map(l => l.toUpperCase()).join(', ')}]  engine=${ttsEngine}`);
     
     // Start background processing (don't await)
-    processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, languages, ttsEngine, fishVoiceId).catch(err => {
+    processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, languages, ttsEngine, fishVoiceId, voices).catch(err => {
       log.error(`Job ${jobId} failed: ${err.message}`);
       updateJobStatus(jobId, 'failed', err.message);
     });
@@ -234,7 +236,7 @@ router.get('/status/:jobId', async (req, res) => {
 /**
  * Background processing function
  */
-async function processJobBackground(jobId, videoPath, sourceLanguage, targetLanguages, ttsEngine = 'kokoro', fishVoiceId = null) {
+async function processJobBackground(jobId, videoPath, sourceLanguage, targetLanguages, ttsEngine = 'kokoro', fishVoiceId = null, voices = {}) {
   try {
     log.job(jobId, 'Starting background processing');
     await updateJobStatus(jobId, 'processing');
@@ -247,6 +249,7 @@ async function processJobBackground(jobId, videoPath, sourceLanguage, targetLang
       targetLanguages,
       ttsEngine,
       fishVoiceId,
+      voices,
       onProgress: async (stage, language) => {
         log.job(jobId, `${stage}${language ? `  [${language}]` : ''}`);
         await updateJobStep(jobId, stage, language);
@@ -285,7 +288,7 @@ async function processJobBackground(jobId, videoPath, sourceLanguage, targetLang
 /**
  * Background processing function for URL-based videos
  */
-async function processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, targetLanguages, ttsEngine = 'kokoro', fishVoiceId = null) {
+async function processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, targetLanguages, ttsEngine = 'kokoro', fishVoiceId = null, voices = {}) {
   try {
     log.job(jobId, 'Starting background processing (URL)');
     await updateJobStatus(jobId, 'processing');
@@ -298,6 +301,7 @@ async function processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, targ
       targetLanguages,
       ttsEngine,
       fishVoiceId,
+      voices,
       onProgress: async (stage, language) => {
         log.job(jobId, `${stage}${language ? `  [${language}]` : ''}`);
         await updateJobStep(jobId, stage, language);

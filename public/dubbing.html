@@ -160,16 +160,15 @@
     <p>
       <label>Target Languages:</label>
       <div class="checkbox-group">
-        <div class="checkbox-item"><input type="checkbox" id="lang-en" value="en"><label for="lang-en">English</label></div>
-        <div class="checkbox-item"><input type="checkbox" id="lang-es" value="es"><label for="lang-es">Spanish</label></div>
-        <div class="checkbox-item"><input type="checkbox" id="lang-fr" value="fr"><label for="lang-fr">French</label></div>
-        <div class="checkbox-item"><input type="checkbox" id="lang-it" value="it"><label for="lang-it">Italian</label></div>
-        <div class="checkbox-item"><input type="checkbox" id="lang-pt" value="pt"><label for="lang-pt">Portuguese</label></div>
-        <div class="checkbox-item"><input type="checkbox" id="lang-hi" value="hi"><label for="lang-hi">Hindi</label></div>
-        <div class="checkbox-item"><input type="checkbox" id="lang-ja" value="ja"><label for="lang-ja">Japanese </label></div>
-        <div class="checkbox-item"><input type="checkbox" id="lang-zh" value="zh"><label for="lang-zh">Chinese </label></div>
+        <div class="checkbox-item"><input type="checkbox" id="lang-en" value="en" onchange="renderVoiceSelectors()"><label for="lang-en">English</label></div>
+        <div class="checkbox-item"><input type="checkbox" id="lang-es" value="es" onchange="renderVoiceSelectors()"><label for="lang-es">Spanish</label></div>
+        <div class="checkbox-item"><input type="checkbox" id="lang-fr" value="fr" onchange="renderVoiceSelectors()"><label for="lang-fr">French</label></div>
+        <div class="checkbox-item"><input type="checkbox" id="lang-it" value="it" onchange="renderVoiceSelectors()"><label for="lang-it">Italian</label></div>
+        <div class="checkbox-item"><input type="checkbox" id="lang-pt" value="pt" onchange="renderVoiceSelectors()"><label for="lang-pt">Portuguese</label></div>
+        <div class="checkbox-item"><input type="checkbox" id="lang-tl" value="tl" onchange="renderVoiceSelectors()"><label for="lang-tl">Tagalog</label></div>
+        <div class="checkbox-item"><input type="checkbox" id="lang-ja" value="ja" onchange="renderVoiceSelectors()"><label for="lang-ja">Japanese</label></div>
+        <div class="checkbox-item"><input type="checkbox" id="lang-hi" value="hi" onchange="renderVoiceSelectors()"><label for="lang-hi">Hindi</label></div>
       </div>
-      <small style="color:#888;">⚠️ Japanese and Chinese are not supported as TTS targets</small>
     </p>
 
     <!-- TTS Engine -->
@@ -178,13 +177,13 @@
       <div class="engine-box">
         <div class="engine-row">
           <label>
-            <input type="radio" name="ttsEngine" value="kokoro" checked onchange="toggleEngine()">
+            <input type="radio" name="ttsEngine" value="kokoro" checked onchange="toggleEngine(); renderVoiceSelectors();">
             Kokoro (Replicate)
             <span class="badge badge-green">Grade A</span>
             <span class="badge badge-blue">Default</span>
           </label>
           <label>
-            <input type="radio" name="ttsEngine" value="fish" onchange="toggleEngine()">
+            <input type="radio" name="ttsEngine" value="fish" onchange="toggleEngine(); renderVoiceSelectors();">
             Fish Audio
             <span class="badge badge-blue">Voice Cloning</span>
           </label>
@@ -192,12 +191,18 @@
 
         <div id="fishOptions">
           <p style="margin: 10px 0 4px;">
-            <label for="fishVoiceId">Fish Audio Voice ID <small style="color:#888;">(leave blank to use .env default)</small>:</label>
-            <input type="text" id="fishVoiceId" placeholder="e.g. 9f0465b5f2a34defbd25e9cf29cb3c23">
+            <label for="fishVoiceId">Fish Audio Global Voice ID <small style="color:#888;">(leave blank for language defaults)</small>:</label>
+            <input type="text" id="fishVoiceId" placeholder="e.g. 1936333080804be19655c6749b2ae7b2">
           </p>
         </div>
       </div>
     </p>
+
+    <!-- Per-Language Voice Selection Panel -->
+    <div id="voiceSelectionContainer" style="margin-top: 15px; border: 1px solid #cce5ff; background: #f8f9fa; padding: 12px; border-radius: 6px; display: none;">
+      <h4 style="margin: 0 0 8px 0; font-size: 13px; color: #004085;">🎤 Per-Language Voice Selection:</h4>
+      <div id="voiceSelectorsList"></div>
+    </div>
 
     <button type="button" id="dubbingBtn">Submit Dubbing Job</button>
 
@@ -232,6 +237,78 @@ function toggleEngine() {
   document.getElementById('fishOptions').style.display = engine === 'fish' ? 'block' : 'none';
 }
 
+const KOKORO_VOICES_BY_LANG = {
+  'en': [
+    { id: 'af_heart', label: 'af_heart (Heart - Female, ★ Grade A [Default])' },
+    { id: 'af_bella', label: 'af_bella (Bella - Female, ★ Grade A)' },
+    { id: 'af_nicole', label: 'af_nicole (Nicole - Female, Grade A-)' },
+    { id: 'af_aoede', label: 'af_aoede (Aoede - Female, Grade A-)' },
+    { id: 'am_adam', label: 'am_adam (Adam - Male, Grade A-)' },
+    { id: 'am_michael', label: 'am_michael (Michael - Male, Grade A-)' },
+    { id: 'bf_emma', label: 'bf_emma (Emma - UK Female, Grade B+)' },
+    { id: 'bm_george', label: 'bm_george (George - UK Male, Grade B+)' }
+  ],
+  'es': [{ id: 'ef_dora', label: 'ef_dora (Dora - Female, Grade B+ [Best Native])' }],
+  'fr': [{ id: 'ff_siwis', label: 'ff_siwis (Siwis - Female, Grade B- [Best Native])' }],
+  'it': [{ id: 'if_sara', label: 'if_sara (Sara - Female, Grade C+ [Best Native])' }],
+  'pt': [{ id: 'pf_dora', label: 'pf_dora (Dora - Female, Grade B+ [Best Native])' }],
+  'ja': [{ id: 'jf_alpha', label: 'jf_alpha (Alpha - Female, Grade B [Best Native])' }],
+  'tl': [{ id: 'af_heart', label: 'af_heart (Heart - Female, ★ Grade A [Default])' }],
+  'hi': [{ id: 'hf_alpha', label: 'hf_alpha (Alpha - Female, Grade C [Best Native])' }]
+};
+
+const LANG_NAMES = {
+  'en': 'English', 'es': 'Spanish', 'fr': 'French', 'it': 'Italian',
+  'pt': 'Portuguese', 'tl': 'Tagalog', 'ja': 'Japanese', 'hi': 'Hindi'
+};
+
+function renderVoiceSelectors() {
+  const container = document.getElementById('voiceSelectionContainer');
+  const list = document.getElementById('voiceSelectorsList');
+  const engine = document.querySelector('input[name="ttsEngine"]:checked').value;
+
+  const selectedLangs = [];
+  document.querySelectorAll('.checkbox-item input[type="checkbox"]:checked').forEach(cb => {
+    selectedLangs.push(cb.value);
+  });
+
+  if (selectedLangs.length === 0) {
+    container.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+
+  container.style.display = 'block';
+  let html = '';
+
+  selectedLangs.forEach(lang => {
+    const langName = LANG_NAMES[lang] || lang.toUpperCase();
+    if (engine === 'kokoro') {
+      const options = KOKORO_VOICES_BY_LANG[lang] || [{ id: 'af_heart', label: 'af_heart (Default)' }];
+      html += `<div style="margin-bottom: 8px;">
+        <label style="font-size: 12px; font-weight: 600;">${langName} (${lang.toUpperCase()}):</label>
+        <select class="voice-picker-input" data-lang="${lang}" style="margin-top: 2px;">
+          ${options.map(opt => `<option value="${opt.id}">${opt.label}</option>`).join('')}
+        </select>
+      </div>`;
+    } else {
+      html += `<div style="margin-bottom: 10px; border-bottom: 1px dashed #ccc; padding-bottom: 6px;">
+        <label style="font-size: 12px; font-weight: 600;">${langName} (${lang.toUpperCase()}) Fish Audio Voice:</label>
+        <div style="display: flex; gap: 8px; margin-top: 4px;">
+          <select class="voice-picker-input" data-lang="${lang}" id="fish-preset-${lang}" style="flex: 1;" onchange="if(this.value==='custom') { document.getElementById('fish-custom-${lang}').style.display='block'; } else { document.getElementById('fish-custom-${lang}').style.display='none'; }">
+            <option value="1">Voice #1: Female (Default from .env)</option>
+            <option value="2">Voice #2: Male (From .env)</option>
+            <option value="custom">Custom Voice ID...</option>
+          </select>
+          <input type="text" id="fish-custom-${lang}" placeholder="Paste 32-char Voice ID" style="flex: 1; display: none;" oninput="document.getElementById('fish-preset-${lang}').setAttribute('data-custom-val', this.value.trim())">
+        </div>
+      </div>`;
+    }
+  });
+
+  list.innerHTML = html;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   const dubbingBtn = document.getElementById('dubbingBtn');
 
@@ -246,6 +323,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const targetLanguages = [];
     document.querySelectorAll('.checkbox-item input[type="checkbox"]:checked').forEach(cb => {
       targetLanguages.push(cb.value);
+    });
+
+    const voices = {};
+    document.querySelectorAll('.voice-picker-input').forEach(input => {
+      const lang = input.getAttribute('data-lang');
+      let val = input.value.trim();
+      if (val === 'custom') {
+        val = input.getAttribute('data-custom-val') || '';
+      }
+      if (val) voices[lang] = val;
     });
 
     if (!sourceLanguage) { output.textContent = 'Please select a source language.'; return; }
@@ -268,7 +355,7 @@ document.addEventListener('DOMContentLoaded', function() {
           return;
         }
 
-        const body = { videoUrl, sourceLanguage, targetLanguages, ttsEngine };
+        const body = { videoUrl, sourceLanguage, targetLanguages, ttsEngine, voices };
         if (ttsEngine === 'fish' && fishVoiceId) body.fishVoiceId = fishVoiceId;
 
         response = await fetch(SERVER + '/api/dubbing/async/single', {
@@ -291,6 +378,7 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('sourceLanguage', sourceLanguage);
         formData.append('targetLanguages', JSON.stringify(targetLanguages));
         formData.append('ttsEngine', ttsEngine);
+        formData.append('voices', JSON.stringify(voices));
         if (ttsEngine === 'fish' && fishVoiceId) formData.append('fishVoiceId', fishVoiceId);
 
         response = await fetch(SERVER + '/api/dubbing/async/upload', {

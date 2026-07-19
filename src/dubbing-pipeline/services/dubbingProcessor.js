@@ -75,7 +75,7 @@ function groupWordsIntoSentences(words) {
  * @param {Function} options.onProgress - Optional progress callback
  * @returns {Object} Processing results
  */
-async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLanguages, ttsEngine = 'kokoro', fishVoiceId = null, onProgress }) {
+async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLanguages, ttsEngine = 'kokoro', fishVoiceId = null, voices = {}, onProgress }) {
   const startTime = Date.now();
   const results = {};
   const timings = {}; // per-language timing breakdowns
@@ -103,11 +103,12 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
       const langStartTime = Date.now();
       const langTempFiles = [];
       const langTimings = {};
+      const langVoiceOverride = (voices && voices[targetLang]) || fishVoiceId || null;
       
       try {
         if (onProgress) onProgress('processing', targetLang);
         
-        log.section(`Processing language: ${targetLang.toUpperCase()}  [engine=${ttsEngine}]`);
+        log.section(`Processing language: ${targetLang.toUpperCase()}  [engine=${ttsEngine}${langVoiceOverride ? `  voice=${langVoiceOverride}` : ''}]`);
         
         let translatedSegments = [];
         if (segments.length > 0) {
@@ -128,8 +129,8 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
         const ttsPromises = translatedSegments.map(async (seg, idx) => {
           const tempOutPath = path.join(process.cwd(), 'temp', `seg_${jobId}_${targetLang}_${idx}_orig.wav`);
           const generatedPath = ttsEngine === 'fish'
-            ? await generateSpeechFish(seg.translatedText, targetLang, tempOutPath, fishVoiceId)
-            : await generateSpeech(seg.translatedText, targetLang, tempOutPath);
+            ? await generateSpeechFish(seg.translatedText, targetLang, tempOutPath, langVoiceOverride)
+            : await generateSpeech(seg.translatedText, targetLang, tempOutPath, langVoiceOverride);
           langTempFiles.push(generatedPath);
           return { ...seg, rawTtsPath: generatedPath };
         });
@@ -280,7 +281,7 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
 /**
  * Process job from video URL
  */
-async function processDubbingJobFromUrl({ jobId, videoUrl, sourceLanguage, targetLanguages, ttsEngine = 'kokoro', fishVoiceId = null, onProgress }) {
+async function processDubbingJobFromUrl({ jobId, videoUrl, sourceLanguage, targetLanguages, ttsEngine = 'kokoro', fishVoiceId = null, voices = {}, onProgress }) {
   let videoPath;
 
   if (videoUrl.startsWith('http')) {
@@ -293,7 +294,7 @@ async function processDubbingJobFromUrl({ jobId, videoUrl, sourceLanguage, targe
     }
   }
 
-  return processDubbingJob({ jobId, videoPath, sourceLanguage, targetLanguages, ttsEngine, fishVoiceId, onProgress });
+  return processDubbingJob({ jobId, videoPath, sourceLanguage, targetLanguages, ttsEngine, fishVoiceId, voices, onProgress });
 }
 
 module.exports = {

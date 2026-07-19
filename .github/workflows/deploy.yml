@@ -75,4 +75,6 @@ jobs:
                 R2_SECRET_ACCESS_KEY=${{ secrets.R2_SECRET_ACCESS_KEY }} \
                 R2_BUCKET_NAME=${{ secrets.R2_BUCKET_NAME }} \
                 R2_PUBLIC_URL=${{ secrets.R2_PUBLIC_URL }} \
+                FISH_AUDIO_API_KEY=${{ secrets.FISH_AUDIO_API_KEY }} \
+                FISH_AUDIO_MODEL=s2.1-pro-free \
                 FIREBASE_CREDENTIALS=secretref:firebase-credentials

@@ -14,6 +14,7 @@ const axios = require('axios');
 const fs = require('fs').promises;
 const path = require('path');
 const log = require('../../shared/utils/logger');
+const { resolveVoiceId } = require('../../config/voices');
 
 const FISH_AUDIO_API_KEY = process.env.FISH_AUDIO_API_KEY;
 const FISH_AUDIO_API_URL = 'https://api.fish.audio/v1/tts';
@@ -29,7 +30,7 @@ const FISH_AUDIO_MODEL = process.env.FISH_AUDIO_MODEL || 's2.1-pro-free'; // fre
  */
 async function generateSpeechFish(text, language = 'en', outputPath = null, referenceId = null) {
   try {
-    const voiceId = referenceId || process.env.FISH_AUDIO_DEFAULT_VOICE_ID;
+    const voiceId = resolveVoiceId('fish', language, referenceId);
 
     log.step(`Fish Audio TTS  ${language.toUpperCase()}  model=${FISH_AUDIO_MODEL}${voiceId ? `  voice=${voiceId}` : '  voice=default'}`);
     log.detail(`Text: "${text.substring(0, 60)}..."`);
@@ -41,7 +42,7 @@ async function generateSpeechFish(text, language = 'en', outputPath = null, refe
       normalize: true,
     };
 
-    // Only attach reference_id if one is provided — Fish Audio uses its default voice otherwise
+    // Attach reference_id
     if (voiceId) {
       payload.reference_id = voiceId;
     }

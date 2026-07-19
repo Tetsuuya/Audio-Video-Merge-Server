@@ -11,10 +11,10 @@ const Replicate = require('replicate');
 const fs = require('fs').promises;
 const path = require('path');
 const log = require('../../shared/utils/logger');
+const { resolveVoiceId } = require('../../config/voices');
 
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
 const KOKORO_MODEL = 'alphanumericuser/kokoro-82m:89b6fa84e4fa2dd6bd3a96be3e1f12827a3516c9fda8fddbac7a0be131c9a6f5';
-const GRADE_A_VOICE = 'af_heart';
 
 const replicate = new Replicate({
   auth: REPLICATE_API_TOKEN
@@ -28,6 +28,7 @@ const LANGUAGE_CODE_MAP = {
   'it': 'i',  // Italian
   'pt': 'p',  // Brazilian Portuguese
   'ja': 'j',  // Japanese
+  'tl': 'a',  // Tagalog / Filipino (uses English code for Kokoro model)
   'zh': 'z',  // Mandarin Chinese
   'hi': 'h'   // Hindi
 };
@@ -37,13 +38,15 @@ const LANGUAGE_CODE_MAP = {
  * @param {string} text - Text to convert to speech
  * @param {string} language - Language code (e.g., 'en', 'es')
  * @param {string} outputPath - Path to save generated audio (optional)
+ * @param {string} voiceOverride - Optional custom voice ID
  * @returns {Promise<string>} - Path to generated audio file
  */
-async function generateSpeech(text, language = 'en', outputPath = null) {
+async function generateSpeech(text, language = 'en', outputPath = null, voiceOverride = null) {
   try {
     const languageCode = LANGUAGE_CODE_MAP[language] || 'a';
+    const voiceToUse = resolveVoiceId('kokoro', language, voiceOverride);
 
-    log.step(`TTS  ${language.toUpperCase()}  voice=${GRADE_A_VOICE}  code=${languageCode}`);
+    log.step(`Kokoro TTS  ${language.toUpperCase()}  voice=${voiceToUse}  code=${languageCode}`);
     log.detail(`Text: "${text.substring(0, 60)}..."`);
 
     const output = await replicate.run(
@@ -51,7 +54,7 @@ async function generateSpeech(text, language = 'en', outputPath = null) {
       {
         input: {
           text: text,
-          voice: GRADE_A_VOICE,
+          voice: voiceToUse,
           language_code: languageCode,
           speed: 1.0
         }
