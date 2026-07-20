@@ -53,7 +53,7 @@ const db = getDb();
 /**
  * Create a new job in Firestore
  */
-async function createJob(jobId, videoUrl, sourceLanguage, targetLanguages) {
+async function createJob(jobId, videoUrl, sourceLanguage, targetLanguages, ttsEngine = 'kokoro') {
   const { FieldValue } = require('firebase-admin/firestore');
   
   const jobData = {
@@ -62,7 +62,9 @@ async function createJob(jobId, videoUrl, sourceLanguage, targetLanguages) {
     videoUrl,
     sourceLanguage,
     targetLanguages,
+    ttsEngine,
     results: {},
+    transcript: null,
     error: null,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
@@ -70,7 +72,7 @@ async function createJob(jobId, videoUrl, sourceLanguage, targetLanguages) {
   };
 
   await db.collection('jobs').doc(jobId).set(jobData);
-  log.success(`Job created in Firestore: ${jobId}`);
+  log.success(`Job created in Firestore: ${jobId}  engine=${ttsEngine}`);
   return jobData;
 }
 
@@ -129,6 +131,19 @@ async function updateJobResult(jobId, language, result) {
 }
 
 /**
+ * Save the raw transcript (source audio transcription) to the job document
+ */
+async function saveJobTranscript(jobId, transcript) {
+  const { FieldValue } = require('firebase-admin/firestore');
+  
+  await db.collection('jobs').doc(jobId).update({
+    transcript,
+    updatedAt: FieldValue.serverTimestamp()
+  });
+  log.success(`Transcript saved for job: ${jobId}`);
+}
+
+/**
  * Get job by ID
  */
 async function getJob(jobId) {
@@ -167,6 +182,7 @@ module.exports = {
   updateJobStatus,
   updateJobStep,
   updateJobResult,
+  saveJobTranscript,
   getJob,
   cleanupOldJobs,
   db

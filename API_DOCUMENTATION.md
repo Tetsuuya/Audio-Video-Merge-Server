@@ -1,223 +1,212 @@
-# Audio-Video Merge Server - API Documentation
+# Dubbing Server API Reference
 
-This server provides the backend APIs for the automated video dubbing pipeline (Extract Audio → Transcribe → Translate → TTS → Merge).
-
-**Production Base URL:** `https://dubbing-merge-server.jollygrass-a22ba7ee.northeurope.azurecontainerapps.io`
+**Base URL:** `https://dubbing-merge-server.jollygrass-a22ba7ee.northeurope.azurecontainerapps.io`
 
 ---
 
 ## Endpoints
 
-### 1. Health Check
-Checks if the server is active.
-* **Method:** `GET`
-* **Path:** `/health`
-* **Response (200 OK):**
-  ```json
-  {
-    "status": "ok",
-    "service": "dubbing-merge-server",
-    "timestamp": "2026-07-16T10:27:17.366Z"
-  }
-  ```
+### `GET /health`
+No params. Returns server status.
 
 ---
 
-### 2. Submit Dubbing Job (Via Video URL)
-Queues a dubbing job using a publicly accessible video URL. Returns a `jobId` immediately.
-* **Method:** `POST`
-* **Path:** `/api/dubbing/async/single`
-* **Content-Type:** `application/json`
-* **Request Body:**
-  ```json
-  {
-    "videoUrl": "https://example.com/video.mp4",
-    "sourceLanguage": "en",
-    "targetLanguages": ["es", "fr", "pt", "ja", "tl"],
-    "ttsEngine": "kokoro",
-    "voices": {
-      "en": "am_adam",
-      "es": "ef_dora",
-      "fr": "ff_siwis",
-      "pt": "pf_dora",
-      "ja": "jf_alpha",
-      "tl": "1"
+### `POST /api/dubbing/async/single`
+Submit a dubbing job via video URL.
+
+**Headers:** `Content-Type: application/json`
+
+**Body:**
+```json
+{
+  "videoUrl": "https://...",
+  "sourceLanguage": "en",
+  "targetLanguages": ["es", "fr"],
+  "ttsEngine": "kokoro",
+  "voices": { "es": "ef_dora", "fr": "ff_siwis" }
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `videoUrl` | ✅ | YouTube, TikTok, Vimeo, direct `.mp4` |
+| `sourceLanguage` | ✅ | Language code of the original video |
+| `targetLanguages` | ✅ | Array of target language codes |
+| `ttsEngine` | ❌ | `"kokoro"` (default) or `"fish"` |
+| `voices` | ❌ | Map of `{ languageCode: voiceId }`. Falls back to default if omitted or invalid |
+
+**Response `202`:**
+```json
+{
+  "success": true,
+  "jobId": "job_1784198042093",
+  "status": "pending",
+  "statusUrl": "/api/dubbing/async/status/job_1784198042093"
+}
+```
+
+---
+
+### `POST /api/dubbing/async/upload`
+Submit a dubbing job via direct file upload.
+
+**Headers:** `Content-Type: multipart/form-data`
+
+| Field | Required | Notes |
+|---|---|---|
+| `video` | ✅ | Video file. Max 500MB |
+| `sourceLanguage` | ✅ | Language code string |
+| `targetLanguages` | ✅ | JSON string e.g. `'["es","fr"]'` |
+| `ttsEngine` | ❌ | `"kokoro"` or `"fish"` |
+| `voices` | ❌ | JSON string e.g. `'{"es":"ef_dora"}'` |
+
+> `targetLanguages` and `voices` must be **JSON-stringified** in form-data.
+
+**Response `202`:** Same as `/async/single`.
+
+---
+
+### `GET /api/dubbing/async/status/:jobId`
+Poll job progress and get results.
+
+No body. Replace `:jobId` with the ID from the submit response.
+
+**Response while processing:**
+```json
+{
+  "jobId": "job_1784198042093",
+  "status": "processing",
+  "currentStep": "tts_synthesis",
+  "steps": [
+    { "id": "extract_audio", "status": "completed" },
+    { "id": "transcribe",    "status": "completed" },
+    { "id": "translate",     "status": "completed" },
+    { "id": "tts_synthesis", "status": "in_progress" },
+    { "id": "merge_video",   "status": "pending" }
+  ]
+}
+```
+
+**Response when done:**
+```json
+{
+  "jobId": "job_1784198042093",
+  "status": "completed",
+  "results": {
+    "es": {
+      "video": "https://pub-....r2.dev/job_1784198042093_es.mp4",
+      "transcript": "...",
+      "translation": "..."
     }
+  },
+  "metrics": {
+    "total_duration": 91.2,
+    "segments_count": 8
   }
-  ```
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `videoUrl` | string | Yes | Publicly accessible URL to video file (YouTube, TikTok, Vimeo, Twitter, direct .mp4) |
-| `sourceLanguage` | string | Yes | Language code of the original video (e.g. `"en"`, `"es"`) |
-| `targetLanguages` | string[] | Yes | Target language codes to dub into |
-| `ttsEngine` | string | No | `"kokoro"` (default) or `"fish"` |
-| `voices` | object | No | Per-language voice selection map (e.g. `{"en": "am_adam", "es": "ef_dora"}`) |
-| `fishVoiceId` | string | No | Legacy global Fish Audio voice ID override |
-* **Response (202 Accepted):**
-  ```json
-  {
-    "success": true,
-    "jobId": "job_1784198042093",
-    "status": "pending",
-    "message": "Job queued for processing",
-    "statusUrl": "/api/dubbing/async/status/job_1784198042093",
-    "estimatedTime": "30-60s"
-  }
-  ```
+}
+```
 
 ---
 
-### 3. Submit Dubbing Job (Via File Upload)
-Queues a dubbing job by uploading a video file directly to the server. Returns a `jobId` immediately.
-* **Method:** `POST`
-* **Path:** `/api/dubbing/async/upload`
-* **Content-Type:** `multipart/form-data`
-* **Form Fields:**
+### `POST /merge`
+Merge pre-dubbed audio onto a video. Results sent to your webhook.
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `video` | File | Yes | Video file binary (max 500MB) |
-| `sourceLanguage` | string | Yes | Language code of the original video |
-| `targetLanguages` | string | Yes | JSON string array e.g. `["en", "fr", "pt"]` |
-| `ttsEngine` | string | No | `"kokoro"` (default) or `"fish"` |
-| `voices` | string | No | JSON string object e.g. `'{"es": "ef_dora", "fr": "ff_siwis"}'` |
-| `fishVoiceId` | string | No | Fish Audio voice model ID |
-* **Response (202 Accepted):**
-  ```json
-  {
-    "success": true,
-    "jobId": "job_1784198042093",
-    "status": "pending",
-    "message": "Job queued for processing",
-    "statusUrl": "/api/dubbing/async/status/job_1784198042093",
-    "estimatedTime": "30-60s"
-  }
-  ```
+**Headers:**
+- `Content-Type: application/json`
+- `x-dubbing-secret: <your_secret>`
 
----
+**Body:**
+```json
+{
+  "jobId": "job_abc123",
+  "projectId": "project_xyz",
+  "videoUrl": "https://...",
+  "audioTracks": [
+    { "language": "fr-FR", "audioUrl": "https://..." },
+    { "language": "de-DE", "audioUrl": "https://..." }
+  ],
+  "webhookUrl": "https://your-app.com/webhook"
+}
+```
 
-### 4. Check Job Status (Polling & Timeline Stepper)
-Polls the progress, granular pipeline step status, and results of a queued job.
-* **Method:** `GET`
-* **Path:** `/api/dubbing/async/status/:jobId`
-* **Response (When Pending/Processing):**
-  ```json
-  {
-    "success": true,
-    "jobId": "job_1784198042093",
-    "status": "processing",
-    "currentStep": "tts_synthesis",
-    "currentLanguage": "es",
-    "sourceLanguage": "en",
-    "targetLanguages": ["es", "fr"],
-    "steps": [
-      { "id": "extract_audio", "label": "Extract audio", "status": "completed" },
-      { "id": "transcribe", "label": "Transcribe", "status": "completed" },
-      { "id": "translate", "label": "Translate", "status": "completed" },
-      { "id": "tts_synthesis", "label": "TTS synthesis", "status": "in_progress", "currentLanguage": "es" },
-      { "id": "merge_video", "label": "Merge video", "status": "pending" }
-    ],
-    "createdAt": { "_seconds": 1784198043, "_nanoseconds": 29000000 },
-    "updatedAt": { "_seconds": 1784198080, "_nanoseconds": 112000000 }
-  }
-  ```
-* **Response (When Completed):**
-  ```json
-  {
-    "success": true,
-    "jobId": "job_1784198042093",
-    "status": "completed",
-    "currentStep": "completed",
-    "currentLanguage": null,
-    "sourceLanguage": "en",
-    "targetLanguages": ["es"],
-    "steps": [
-      { "id": "extract_audio", "label": "Extract audio", "status": "completed" },
-      { "id": "transcribe", "label": "Transcribe", "status": "completed" },
-      { "id": "translate", "label": "Translate", "status": "completed" },
-      { "id": "tts_synthesis", "label": "TTS synthesis", "status": "completed" },
-      { "id": "merge_video", "label": "Merge video", "status": "completed" }
-    ],
-    "createdAt": { "_seconds": 1784198043, "_nanoseconds": 29000000 },
-    "updatedAt": { "_seconds": 1784198140, "_nanoseconds": 398000000 },
-    "completedAt": { "_seconds": 1784198140, "_nanoseconds": 398000000 },
-    "results": {
-      "es": {
-        "success": true,
-        "transcript": "Hello, how are you?...",
-        "translation": "Hola, ¿cómo estás?...",
-        "video": "https://pub-2cef9c5568494521818fd27b425ae677.r2.dev/job_1784198042093_es.mp4"
-      }
-    },
-    "metrics": {
-      "total_duration": 91.2,
-      "extraction_duration": 1.5,
-      "transcription_duration": 14.2,
-      "translation_duration": 0.8,
-      "tts_duration": 60.5,
-      "merge_duration": 1.2,
-      "upload_duration": 3.0,
-      "segments_count": 8,
-      "languages_processed": 1
-    }
-  }
-  ```
-
----
-
-## Supported Languages & Voice Selection Guide
-
-### Supported Target Languages
-* `en` (English)
-* `es` (Spanish)
-* `fr` (French)
-* `it` (Italian)
-* `pt` (Portuguese)
-* `ja` (Japanese)
-* `tl` / `fil` (Tagalog / Filipino)
-* `hi` (Hindi)
-
----
-
-### Voice Selection & Smart Fallback Rules
-
-If no voice ID is provided or if an invalid voice ID (e.g. `"10"` or `"id5"`) is sent, the server **automatically falls back to Voice #1 (Female)** for that target language without failing the job.
-
-#### 1. Kokoro TTS Engine (`"ttsEngine": "kokoro"`)
-
-| Target Language | Voice Choices | Voice ID | Description |
-|---|---|---|---|
-| **English (`en`)** | Grade A Presets | **`af_heart`**<br>**`af_bella`**<br>**`af_nicole`**<br>**`af_aoede`**<br>**`am_adam`**<br>**`am_michael`**<br>**`bf_emma`**<br>**`bm_george`** | Heart (Female, Grade A - Default)<br>Bella (Female, Grade A)<br>Nicole (Female, Grade A-)<br>Aoede (Female, Grade A-)<br>Adam (Male, Grade A-)<br>Michael (Male, Grade A-)<br>Emma (UK Female, Grade B+)<br>George (UK Male, Grade B+) |
-| **Spanish (`es`)** | Best Native | **`ef_dora`** | Dora (Female, Grade B+) |
-| **French (`fr`)** | Best Native | **`ff_siwis`** | Siwis (Female, Grade B-) |
-| **Italian (`it`)** | Best Native | **`if_sara`** | Sara (Female, Grade C+) |
-| **Portuguese (`pt`)** | Best Native | **`pf_dora`** | Dora (Female, Grade B+) |
-| **Japanese (`ja`)** | Best Native | **`jf_alpha`** | Alpha (Female, Grade B) |
-| **Tagalog (`tl`)** | Fallback | **`af_heart`** | Heart (Female, Grade A) |
-| **Hindi (`hi`)** | Best Native | **`hf_alpha`** | Alpha (Female, Grade C) |
-
-#### 2. Fish Audio Engine (`"ttsEngine": "fish"`)
-
-For Fish Audio, users can pass:
-* `"1"` or `"female"` $\to$ Voice #1 (Female built-in default per language)
-* `"2"` or `"male"` $\to$ Voice #2 (Male built-in default per language)
-* **Custom 32-character hex Voice ID** $\to$ Any custom or cloned voice from Fish Audio (e.g. `"87603dd57ecb417e8c57fd4362af1cee"`)
-
----
-
-## Metrics Fields
-
-All duration values are in **seconds** (float).
-
-| Field | Description |
+| Field | Required |
 |---|---|
-| `total_duration` | Total wall-clock time for the entire job |
-| `extraction_duration` | Time to extract audio from video using FFmpeg |
-| `transcription_duration` | Time to upload audio and receive transcript from AssemblyAI |
-| `translation_duration` | Time to translate all segments via DeepL |
-| `tts_duration` | Time to generate all TTS audio clips |
-| `merge_duration` | Time to assemble and merge audio+video via FFmpeg |
-| `upload_duration` | Time to upload final video to Cloudflare R2 |
-| `segments_count` | Number of sentence segments transcript was split into |
-| `languages_processed` | Number of target languages processed |
+| `jobId` | ✅ |
+| `projectId` | ✅ |
+| `videoUrl` | ✅ |
+| `audioTracks` | ✅ Array, min 1 item |
+| `audioTracks[].language` | ✅ e.g. `"fr-FR"` |
+| `audioTracks[].audioUrl` | ✅ `.mp3`, `.wav`, `.m4a` |
+| `webhookUrl` | ✅ Your callback endpoint |
+
+**Response `202`:** `{ "jobId": "...", "status": "processing" }`
+
+**Webhook payload on complete:**
+```json
+{
+  "jobId": "...", "projectId": "...", "status": "completed",
+  "results": { "fr-FR": "https://.../video-fr.mp4" }
+}
+```
+
+---
+
+## Supported Languages
+
+`en` `es` `fr` `it` `pt` `ja` `tl` `hi`
+
+---
+
+## Kokoro Voices
+
+Pass voice IDs in the `voices` field: `{ "en": "am_adam", "es": "ef_dora" }`
+
+**English (`en`)**
+
+| Voice ID | Description |
+|---|---|
+| `af_heart` | Female — Grade A ⭐ default |
+| `af_bella` | Female — Grade A |
+| `af_nicole` | Female — Grade A- |
+| `af_aoede` | Female — Grade A- |
+| `am_adam` | Male — Grade A- |
+| `am_michael` | Male — Grade A- |
+| `bf_emma` | UK Female — Grade B+ |
+| `bm_george` | UK Male — Grade B+ |
+
+**Other Languages** (one voice each, used by default)
+
+| Language | Voice ID |
+|---|---|
+| `es` | `ef_dora` |
+| `fr` | `ff_siwis` |
+| `it` | `if_sara` |
+| `pt` | `pf_dora` |
+| `ja` | `jf_alpha` |
+| `tl` | `af_heart` |
+| `hi` | `hf_alpha` |
+
+---
+
+## Fish Audio Voices
+
+Pass in `voices` field: `{ "es": "1", "fr": "2" }`
+
+| Value | Resolves to |
+|---|---|
+| `"1"` / `"female"` | Female voice for that language |
+| `"2"` / `"male"` | Male voice for that language |
+| 32-char hex string | Your custom cloned Fish Audio voice |
+
+**Built-in voice IDs (for reference):**
+
+| Language | Female | Male |
+|---|---|---|
+| `en` | `b545c585f631496c914815291da4e893` | `d8a1340984ee4b63ad1ffae27a6a4339` |
+| `es` | `87603dd57ecb417e8c57fd4362af1cee` | `8d2c17a9b26d4d83888ea67a1ee565b2` |
+| `fr` | `656cde69eff3483b933b8d2ffd388c3c` | `3bce5f0710f949888abe982ded1ef731` |
+| `it` | `656cde69eff3483b933b8d2ffd388c3c` | `3bce5f0710f949888abe982ded1ef731` |
+| `pt` | `302d4d27c9344460a815ee46efdd5cf0` | `0ba1afd27db44eb2b4cb27fd331b93aa` |
+| `ja` | `c13253b3e1fa4580b1295ef7c7e96c41` | `45c5d3723c9c42f598e4776dcfd5f02d` |
+| `tl` | `701712d9d2194ebd8c0ea782907ceb38` | `1c25b1a3f43546a5bc4e1568e1ed597e` |
+| `hi` | `6904263ba877477fa4ac4a58830126a1` | `b422631422de4186855e9bb1d285a5bd` |

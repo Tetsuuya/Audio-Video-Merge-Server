@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { createJob, getJob, updateJobStatus, updateJobStep, updateJobResult } = require('../../shared/services/firebaseService');
+const { createJob, getJob, updateJobStatus, updateJobStep, updateJobResult, saveJobTranscript } = require('../../shared/services/firebaseService');
 const { processDubbingJob, processDubbingJobFromUrl } = require('../services/dubbingProcessor');
 const log = require('../../shared/utils/logger');
 const fs = require('fs');
@@ -74,10 +74,18 @@ function buildStepsArray(currentStep, jobStatus, currentLanguage = null) {
  */
 router.post('/upload', upload.single('video'), async (req, res) => {
   try {
-    const { sourceLanguage, ttsEngine = 'kokoro', fishVoiceId = null } = req.body;
+    // Normalize engine name — guard against casing issues from frontend (e.g. "Fish", "FISH")
+    const rawEngine = req.body.ttsEngine || 'kokoro';
+    const ttsEngine = rawEngine.toLowerCase().trim();
+    const fishVoiceId = req.body.fishVoiceId || null;
+    const { sourceLanguage } = req.body;
     const targetLanguages = JSON.parse(req.body.targetLanguages || '[]');
     const voices = typeof req.body.voices === 'string' ? JSON.parse(req.body.voices) : (req.body.voices || {});
     const videoFile = req.file;
+
+    // 🔍 Debug: log exactly what the frontend sent so engine issues are visible
+    log.info(`[Upload] raw body fields — ttsEngine=${JSON.stringify(rawEngine)}  fishVoiceId=${JSON.stringify(fishVoiceId)}  sourceLanguage=${JSON.stringify(sourceLanguage)}`);
+    log.info(`[Upload] resolved engine → "${ttsEngine}"`);
     
     if (!videoFile) {
       return res.status(400).json({ success: false, error: 'No video file uploaded' });
@@ -98,8 +106,8 @@ router.post('/upload', upload.single('video'), async (req, res) => {
     
     const jobId = 'job_' + Date.now();
     
-    // Create job in Firestore
-    await createJob(jobId, videoFile.originalname, sourceLanguage, targetLanguages);
+    // Create job in Firestore (now also stores the engine used)
+    await createJob(jobId, videoFile.originalname, sourceLanguage, targetLanguages, ttsEngine);
     
     log.job(jobId, `Created  ${sourceLanguage.toUpperCase()} → [${targetLanguages.map(l => l.toUpperCase()).join(', ')}]  engine=${ttsEngine}`);
     
@@ -131,8 +139,16 @@ router.post('/upload', upload.single('video'), async (req, res) => {
  */
 router.post('/single', async (req, res) => {
   try {
-    const { videoUrl, sourceLanguage, targetLanguages, ttsEngine = 'kokoro', fishVoiceId = null } = req.body;
+    // Normalize engine name — guard against casing issues from frontend
+    const rawEngine = req.body.ttsEngine || 'kokoro';
+    const ttsEngine = rawEngine.toLowerCase().trim();
+    const fishVoiceId = req.body.fishVoiceId || null;
+    const { videoUrl, sourceLanguage, targetLanguages } = req.body;
     const voices = typeof req.body.voices === 'string' ? JSON.parse(req.body.voices) : (req.body.voices || {});
+
+    // 🔍 Debug: log exactly what the frontend sent
+    log.info(`[Single] raw body fields — ttsEngine=${JSON.stringify(rawEngine)}  fishVoiceId=${JSON.stringify(fishVoiceId)}  sourceLanguage=${JSON.stringify(sourceLanguage)}`);
+    log.info(`[Single] resolved engine → "${ttsEngine}"`);
     
     // Support both single targetLanguage and multiple targetLanguages
     let languages = [];
@@ -159,8 +175,8 @@ router.post('/single', async (req, res) => {
     
     const jobId = 'job_' + Date.now();
     
-    // Create job in Firestore
-    await createJob(jobId, videoUrl, sourceLanguage, languages);
+    // Create job in Firestore (now also stores the engine used)
+    await createJob(jobId, videoUrl, sourceLanguage, languages, ttsEngine);
     
     log.job(jobId, `Created  ${sourceLanguage.toUpperCase()} → [${languages.map(l => l.toUpperCase()).join(', ')}]  engine=${ttsEngine}`);
     
@@ -210,12 +226,14 @@ router.get('/status/:jobId', async (req, res) => {
       currentLanguage: currentLanguage,
       sourceLanguage: job.sourceLanguage,
       targetLanguages: job.targetLanguages,
+      ttsEngine: job.ttsEngine || 'kokoro',
       steps: buildStepsArray(currentStep, job.status, currentLanguage),
       createdAt: job.createdAt,
       updatedAt: job.updatedAt
     };
     
     if (job.status === 'completed') {
+      response.transcript = job.transcript || null;
       response.results = job.results;
       response.metrics = job.metrics || null;
       response.completedAt = job.completedAt;
@@ -258,6 +276,11 @@ async function processJobBackground(jobId, videoPath, sourceLanguage, targetLang
 
     for (const [language, langResult] of Object.entries(result.results)) {
       await updateJobResult(jobId, language, langResult);
+    }
+
+    // Save the global transcript (raw source transcription)
+    if (result.transcript) {
+      await saveJobTranscript(jobId, result.transcript);
     }
 
     if (result.metrics) {
@@ -310,6 +333,11 @@ async function processJobFromUrlBackground(jobId, videoUrl, sourceLanguage, targ
 
     for (const [language, langResult] of Object.entries(result.results)) {
       await updateJobResult(jobId, language, langResult);
+    }
+
+    // Save the global transcript (raw source transcription)
+    if (result.transcript) {
+      await saveJobTranscript(jobId, result.transcript);
     }
 
     if (result.metrics) {
