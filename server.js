@@ -67,6 +67,7 @@ app.listen(PORT, () => {
   log.info(`Test interfaces`);
   log.detail(`http://localhost:${PORT}/dubbing.html`);
   log.detail(`http://localhost:${PORT}/merge.html`);
+  log.info(`Gemini AI Text Reduction: ${process.env.GEMINI_API_KEY ? 'ENABLED (' + (process.env.GEMINI_MODEL || 'gemini-flash-lite-latest') + ')' : 'DISABLED (No API Key)'}`);
 
   if (AUTO_CLEANUP) {
     startAutoCleanup();
