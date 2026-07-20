@@ -59,6 +59,8 @@ jobs:
 
       - name: Deploy to Azure Container Apps
         uses: azure/CLI@v1
+        env:
+          GEMINI_KEY: ${{ secrets.GEMINI_API_KEY }}
         with:
           inlineScript: |
             az containerapp update \
@@ -80,6 +82,6 @@ jobs:
                 FISH_AUDIO_API_KEY=${{ secrets.FISH_AUDIO_API_KEY }} \
                 FISH_AUDIO_MODEL=s2.1-pro-free \
                 RESIDENTIAL_PROXY_URL=${{ secrets.RESIDENTIAL_PROXY_URL }} \
-                GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
+                "GEMINI_API_KEY=$GEMINI_KEY" \
                 GEMINI_MODEL=gemini-flash-lite-latest \
                 FIREBASE_CREDENTIALS=secretref:firebase-credentials
