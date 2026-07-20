@@ -180,7 +180,6 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
 
                 seg.rawTtsPath = newTtsPath;
                 seg.translatedText = shortenedText;
-                translatedSegments[i].translatedText = shortenedText;
                 actualDuration = newDuration;
                 finalTtsPath = newTtsPath;
                 isGeminiShortened = true;
