@@ -41,9 +41,11 @@ jobs:
           python3 << 'PYEOF'
           import subprocess, json, os, sys
 
-          creds_raw = os.environ['FIREBASE_CREDENTIALS']
-          gemini_key = os.environ.get('GEMINI_API_KEY', '')
+          creds_raw = os.environ.get('FIREBASE_CREDENTIALS', '').strip()
+          gemini_key = os.environ.get('GEMINI_API_KEY', '').strip()
           minified = json.dumps(json.loads(creds_raw))
+
+          print(f"Setting Azure secrets (gemini_key_len={len(gemini_key)})...")
 
           result = subprocess.run(
             ['az', 'containerapp', 'secret', 'set',
