@@ -20,6 +20,11 @@ try {
 
 const { execFile } = require('child_process');
 
+// Optional residential proxy — set RESIDENTIAL_PROXY_URL in your Azure env vars
+// to route YouTube downloads through a residential IP (bypasses datacenter blocks).
+// Format: http://user:pass@proxy.webshare.io:80
+const RESIDENTIAL_PROXY_URL = process.env.RESIDENTIAL_PROXY_URL || null;
+
 /**
  * Check if URL is YouTube or social media link
  */
@@ -47,6 +52,9 @@ function runYtDlpCli(url, filePath, extractorArg) {
     if (extractorArg) {
       args.push('--extractor-args', extractorArg);
     }
+    if (RESIDENTIAL_PROXY_URL) {
+      args.push('--proxy', RESIDENTIAL_PROXY_URL);
+    }
 
     execFile('yt-dlp', args, (error, stdout, stderr) => {
       if (!error && fs.existsSync(filePath) && fs.statSync(filePath).size >= 10240) {
@@ -68,6 +76,7 @@ function runYtDlpCli(url, filePath, extractorArg) {
           userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
         };
         if (extractorArg) ytdlpOpts.extractorArgs = extractorArg;
+        if (RESIDENTIAL_PROXY_URL) ytdlpOpts.proxy = RESIDENTIAL_PROXY_URL;
 
         ytdlp(url, ytdlpOpts)
           .then(() => {
@@ -89,6 +98,11 @@ function runYtDlpCli(url, filePath, extractorArg) {
  * Download YouTube / social media video using yt-dlp
  */
 async function downloadYouTubeVideo(url, filePath) {
+  if (RESIDENTIAL_PROXY_URL) {
+    log.info(`Proxy mode ON — routing through residential proxy`);
+  } else {
+    log.warn(`No proxy set — YouTube download may fail on cloud IPs. Set RESIDENTIAL_PROXY_URL to fix.`);
+  }
   log.step(`Downloading YouTube/Social video via yt-dlp: ${url}`);
 
   const clientStrategies = [

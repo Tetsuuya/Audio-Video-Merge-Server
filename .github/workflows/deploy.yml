@@ -79,4 +79,5 @@ jobs:
                 R2_PUBLIC_URL=${{ secrets.R2_PUBLIC_URL }} \
                 FISH_AUDIO_API_KEY=${{ secrets.FISH_AUDIO_API_KEY }} \
                 FISH_AUDIO_MODEL=s2.1-pro-free \
+                RESIDENTIAL_PROXY_URL=${{ secrets.RESIDENTIAL_PROXY_URL }} \
                 FIREBASE_CREDENTIALS=secretref:firebase-credentials
