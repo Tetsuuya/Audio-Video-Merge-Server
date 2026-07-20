@@ -151,24 +151,50 @@ async function assembleAudioTimeline(segments, videoDuration, outputPath) {
     }
   }
 
-  const inputs = ['-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100'];
+  // Sort segments chronologically by start time
+  const sortedSegments = [...segments].sort((a, b) => a.start - b.start);
+
+  const inputs = [];
   const filterParts = [];
-  const amixInputs = ['[0:a]'];
+  const concatInputs = [];
+  let currentPos = 0;
+  let inputIdx = 0;
 
-  segments.forEach((seg, index) => {
+  for (let i = 0; i < sortedSegments.length; i++) {
+    const seg = sortedSegments[i];
+    const silenceGap = seg.start - currentPos;
+
+    // Insert silence gap if there is a gap before this segment
+    if (silenceGap > 0.01) {
+      const silenceIdx = inputIdx++;
+      inputs.push(`-f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100:d=${silenceGap.toFixed(4)}`);
+      concatInputs.push(`[${silenceIdx}:a]`);
+    }
+
+    // Insert actual segment audio
+    const segIdx = inputIdx++;
     inputs.push(`-i "${seg.filePath}"`);
-    const delayMs = Math.round(seg.start * 1000);
-    const safeDelayMs = Math.max(0, delayMs);
-    filterParts.push(`[${index + 1}:a]adelay=${safeDelayMs}|${safeDelayMs}[a${index + 1}]`);
-    amixInputs.push(`[a${index + 1}]`);
-  });
+    concatInputs.push(`[${segIdx}:a]`);
 
-  filterParts.push(`${amixInputs.join('')}amix=inputs=${segments.length + 1}:dropout_transition=0:normalize=0[outa]`);
+    // Get exact segment duration
+    const segDuration = await getDuration(seg.filePath);
+    currentPos = seg.start + segDuration;
+  }
+
+  // Tail silence to fill remaining video duration
+  const tailSilence = videoDuration - currentPos;
+  if (tailSilence > 0.01) {
+    const tailIdx = inputIdx++;
+    inputs.push(`-f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100:d=${tailSilence.toFixed(4)}`);
+    concatInputs.push(`[${tailIdx}:a]`);
+  }
+
+  filterParts.push(`${concatInputs.join('')}concat=n=${concatInputs.length}:v=0:a=1[outa]`);
 
   const filterComplex = filterParts.join('; ');
-  const command = `ffmpeg -y ${inputs.join(' ')} -filter_complex "${filterComplex}" -map "[outa]" -t ${videoDuration} "${outputPath}"`;
+  const command = `ffmpeg -y ${inputs.join(' ')} -filter_complex "${filterComplex}" -map "[outa]" "${outputPath}"`;
   
-  log.step(`Assembling audio timeline  ${segments.length} segments  →  ${videoDuration}s`);
+  log.step(`Assembling audio timeline via concat  ${sortedSegments.length} segments (${concatInputs.length} parts)  →  ${videoDuration}s`);
   
   try {
     await execPromise(command);

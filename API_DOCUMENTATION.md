@@ -165,7 +165,7 @@ Pass voice IDs in the `voices` field: `{ "en": "am_adam", "es": "ef_dora" }`
 
 | Voice ID | Description |
 |---|---|
-| `af_heart` | Female — Grade A ⭐ default |
+| `af_heart` | Female — Grade A - default |
 | `af_bella` | Female — Grade A |
 | `af_nicole` | Female — Grade A- |
 | `af_aoede` | Female — Grade A- |
