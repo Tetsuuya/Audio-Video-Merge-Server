@@ -23,7 +23,17 @@ const AUTO_CLEANUP = process.env.AUTO_CLEANUP !== 'false'; // Default: enabled
 
 // Middleware
 app.use(express.json());
-app.use(cors());
+
+// CORS Configuration - Supports ALLOWED_ORIGINS env variable and allows x-dubbing-secret header
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : '*';
+
+app.use(cors({
+  origin: allowedOrigins,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-dubbing-secret']
+}));
 
 // Serve static test page
 app.use(express.static('public'));

@@ -345,6 +345,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     try {
       let response;
+      const apiSecret = 'dubber_secret_998877';
 
       if (mode === 'url') {
         const videoUrl = document.getElementById('videoUrl').value.trim();
@@ -358,9 +359,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const body = { videoUrl, sourceLanguage, targetLanguages, ttsEngine, voices };
         if (ttsEngine === 'fish' && fishVoiceId) body.fishVoiceId = fishVoiceId;
 
+        const headers = { 'Content-Type': 'application/json' };
+        if (apiSecret) headers['x-dubbing-secret'] = apiSecret;
+
         response = await fetch(SERVER + '/api/dubbing/async/single', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: headers,
           body: JSON.stringify(body)
         });
 
@@ -381,8 +385,12 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('voices', JSON.stringify(voices));
         if (ttsEngine === 'fish' && fishVoiceId) formData.append('fishVoiceId', fishVoiceId);
 
+        const headers = {};
+        if (apiSecret) headers['x-dubbing-secret'] = apiSecret;
+
         response = await fetch(SERVER + '/api/dubbing/async/upload', {
           method: 'POST',
+          headers: headers,
           body: formData
         });
       }
