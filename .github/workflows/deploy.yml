@@ -84,6 +84,7 @@ jobs:
                 FISH_AUDIO_API_KEY=${{ secrets.FISH_AUDIO_API_KEY }} \
                 FISH_AUDIO_MODEL=s2.1-pro-free \
                 RESIDENTIAL_PROXY_URL=${{ secrets.RESIDENTIAL_PROXY_URL }} \
+                CUSTOM_DUBBING_SECRET=${{ secrets.CUSTOM_DUBBING_SECRET }} \
                 GEMINI_API_KEY=secretref:gemini-api-key \
                 GEMINI_MODEL=gemini-flash-lite-latest \
                 FIREBASE_CREDENTIALS=secretref:firebase-credentials
