@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const authMiddleware = require('../../merge-only/middleware/auth');
 const { createJob, getJob, updateJobStatus, updateJobStep, updateJobResult, saveJobTranscript } = require('../../shared/services/firebaseService');
 const { processDubbingJob, processDubbingJobFromUrl } = require('../services/dubbingProcessor');
 const log = require('../../shared/utils/logger');
@@ -72,7 +73,7 @@ function buildStepsArray(currentStep, jobStatus, currentLanguage = null) {
  * POST /api/dubbing/async/upload
  * Upload video and create async job
  */
-router.post('/upload', upload.single('video'), async (req, res) => {
+router.post('/upload', authMiddleware, upload.single('video'), async (req, res) => {
   try {
     // Normalize engine name — guard against casing issues from frontend (e.g. "Fish", "FISH")
     const rawEngine = req.body.ttsEngine || 'kokoro';
@@ -137,7 +138,7 @@ router.post('/upload', upload.single('video'), async (req, res) => {
  * POST /api/dubbing/async/single
  * Create async job from video URL
  */
-router.post('/single', async (req, res) => {
+router.post('/single', authMiddleware, async (req, res) => {
   try {
     // Normalize engine name — guard against casing issues from frontend
     const rawEngine = req.body.ttsEngine || 'kokoro';

@@ -144,6 +144,7 @@ async function processDubbingJob({ jobId, videoPath, sourceLanguage, targetLangu
         const langAlignmentDetails = [];
         for (let i = 0; i < segmentsWithTts.length; i++) {
           let seg = segmentsWithTts[i];
+          let finalTtsPath = seg.rawTtsPath;
           let actualDuration = await getDuration(seg.rawTtsPath);
 
           // Original speaker's exact duration for this sentence
