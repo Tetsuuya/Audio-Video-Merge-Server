@@ -4,22 +4,43 @@
 
 ---
 
+## Authentication & Security
+
+All mutating endpoints require an API Secret Header for server-to-server security and API abuse prevention:
+
+* **Header Name:** `x-dubbing-secret`
+* **Header Value:** `<CUSTOM_DUBBING_SECRET>` (configured in server `.env`)
+
+### Unauthenticated Error Response (`401 Unauthorized`)
+If the `x-dubbing-secret` header is missing or invalid, the API returns `HTTP 401`:
+
+```json
+{
+  "status": "error",
+  "message": "Unauthorized: invalid or missing x-dubbing-secret header"
+}
+```
+
+---
+
 ## Endpoints
 
 ### `GET /health`
-No params. Returns server status.
+No params. Returns server health status.
 
 ---
 
 ### `POST /api/dubbing/async/single`
 Submit a dubbing job via video URL.
 
-**Headers:** `Content-Type: application/json`
+**Headers:** 
+* `Content-Type: application/json`
+* `x-dubbing-secret: <CUSTOM_DUBBING_SECRET>`
 
 **Body:**
 ```json
 {
-  "videoUrl": "https://...",
+  "videoUrl": "https://youtube.com/shorts/...",
   "sourceLanguage": "en",
   "targetLanguages": ["es", "fr"],
   "ttsEngine": "kokoro",
@@ -29,19 +50,21 @@ Submit a dubbing job via video URL.
 
 | Field | Required | Notes |
 |---|---|---|
-| `videoUrl` | ✅ | YouTube, TikTok, Vimeo, direct `.mp4` |
-| `sourceLanguage` | ✅ | Language code of the original video |
-| `targetLanguages` | ✅ | Array of target language codes |
+| `videoUrl` | ✅ | YouTube, TikTok, Vimeo, or direct `.mp4` URL |
+| `sourceLanguage` | ✅ | Language code of the original video (e.g. `"en"`) |
+| `targetLanguages` | ✅ | Array of target language codes e.g. `["es", "fr"]` |
 | `ttsEngine` | ❌ | `"kokoro"` (default) or `"fish"` |
-| `voices` | ❌ | Map of `{ languageCode: voiceId }`. Falls back to default if omitted or invalid |
+| `voices` | ❌ | Map of `{ languageCode: voiceId }`. Falls back to default if omitted |
 
-**Response `202`:**
+**Response `202 Accepted`:**
 ```json
 {
   "success": true,
-  "jobId": "job_1784198042093",
+  "jobId": "job_1784622662790",
   "status": "pending",
-  "statusUrl": "/api/dubbing/async/status/job_1784198042093"
+  "message": "Job queued for processing",
+  "statusUrl": "/api/dubbing/async/status/job_1784622662790",
+  "estimatedTime": "30-60s"
 }
 ```
 
@@ -50,58 +73,68 @@ Submit a dubbing job via video URL.
 ### `POST /api/dubbing/async/upload`
 Submit a dubbing job via direct file upload.
 
-**Headers:** `Content-Type: multipart/form-data`
+**Headers:** 
+* `Content-Type: multipart/form-data`
+* `x-dubbing-secret: <CUSTOM_DUBBING_SECRET>`
 
-| Field | Required | Notes |
-|---|---|---|
-| `video` | ✅ | Video file. Max 500MB |
-| `sourceLanguage` | ✅ | Language code string |
-| `targetLanguages` | ✅ | JSON string e.g. `'["es","fr"]'` |
-| `ttsEngine` | ❌ | `"kokoro"` or `"fish"` |
-| `voices` | ❌ | JSON string e.g. `'{"es":"ef_dora"}'` |
+| Field | Required | Type | Notes |
+|---|---|---|---|
+| `video` | ✅ | File | Video file upload (Max 500MB) |
+| `sourceLanguage` | ✅ | String | Language code string e.g. `"en"` |
+| `targetLanguages` | ✅ | String (JSON) | JSON-stringified array e.g. `'["es","fr"]'` |
+| `ttsEngine` | ❌ | String | `"kokoro"` or `"fish"` |
+| `voices` | ❌ | String (JSON) | JSON-stringified map e.g. `'{"es":"ef_dora"}'` |
 
-> `targetLanguages` and `voices` must be **JSON-stringified** in form-data.
+> Note: `targetLanguages` and `voices` must be **JSON-stringified** when using `multipart/form-data`.
 
-**Response `202`:** Same as `/async/single`.
+**Response `202 Accepted`:** Same as `/async/single`.
 
 ---
 
 ### `GET /api/dubbing/async/status/:jobId`
 Poll job progress and get results.
 
-No body. Replace `:jobId` with the ID from the submit response.
+No request body required. Replace `:jobId` with the ID received from job creation.
 
-**Response while processing:**
+**Response while processing (`200 OK`):**
 ```json
 {
-  "jobId": "job_1784198042093",
+  "success": true,
+  "jobId": "job_1784622662790",
   "status": "processing",
   "currentStep": "tts_synthesis",
+  "currentLanguage": "fr",
+  "sourceLanguage": "en",
+  "targetLanguages": ["fr"],
+  "ttsEngine": "fish",
   "steps": [
     { "id": "extract_audio", "status": "completed" },
     { "id": "transcribe",    "status": "completed" },
     { "id": "translate",     "status": "completed" },
-    { "id": "tts_synthesis", "status": "in_progress" },
+    { "id": "tts_synthesis", "status": "in_progress", "currentLanguage": "fr" },
     { "id": "merge_video",   "status": "pending" }
   ]
 }
 ```
 
-**Response when done:**
+**Response when completed (`200 OK`):**
 ```json
 {
-  "jobId": "job_1784198042093",
+  "success": true,
+  "jobId": "job_1784622662790",
   "status": "completed",
   "results": {
-    "es": {
-      "video": "https://pub-....r2.dev/job_1784198042093_es.mp4",
-      "transcript": "...",
-      "translation": "..."
+    "fr": {
+      "success": true,
+      "transcript": "Hello and welcome to the dubbing test...",
+      "translation": "Bonjour, bienvenue à ce test doublage...",
+      "video": "https://pub-2cef9c5568494521818fd27b425ae677.r2.dev/job_1784622662790_fr.mp4"
     }
   },
   "metrics": {
-    "total_duration": 91.2,
-    "segments_count": 8
+    "total_duration": 24.95,
+    "segments_count": 2,
+    "languages_processed": 1
   }
 }
 ```
@@ -109,45 +142,37 @@ No body. Replace `:jobId` with the ID from the submit response.
 ---
 
 ### `POST /merge`
-Merge pre-dubbed audio onto a video. Results sent to your webhook.
+Merge pre-rendered audio onto a video. Results sent to your webhook.
 
 **Headers:**
-- `Content-Type: application/json`
-- `x-dubbing-secret: <your_secret>`
+* `Content-Type: application/json`
+* `x-dubbing-secret: <CUSTOM_DUBBING_SECRET>`
 
 **Body:**
 ```json
 {
   "jobId": "job_abc123",
   "projectId": "project_xyz",
-  "videoUrl": "https://...",
+  "videoUrl": "https://example.com/video.mp4",
   "audioTracks": [
-    { "language": "fr-FR", "audioUrl": "https://..." },
-    { "language": "de-DE", "audioUrl": "https://..." }
+    { "language": "fr-FR", "audioUrl": "https://example.com/audio-fr.mp3" },
+    { "language": "de-DE", "audioUrl": "https://example.com/audio-de.mp3" }
   ],
-  "webhookUrl": "https://your-app.com/webhook"
+  "webhookUrl": "https://your-app.com/api/webhook/merge-complete"
 }
 ```
 
-| Field | Required |
-|---|---|
-| `jobId` | ✅ |
-| `projectId` | ✅ |
-| `videoUrl` | ✅ |
-| `audioTracks` | ✅ Array, min 1 item |
-| `audioTracks[].language` | ✅ e.g. `"fr-FR"` |
-| `audioTracks[].audioUrl` | ✅ `.mp3`, `.wav`, `.m4a` |
-| `webhookUrl` | ✅ Your callback endpoint |
+| Field | Required | Notes |
+|---|---|---|
+| `jobId` | ✅ | Job identifier string |
+| `projectId` | ✅ | Project identifier string |
+| `videoUrl` | ✅ | Public URL to input video file |
+| `audioTracks` | ✅ | Array of audio track objects (min 1 item) |
+| `audioTracks[].language` | ✅ | Language code e.g. `"fr-FR"` |
+| `audioTracks[].audioUrl` | ✅ | URL to audio file (`.mp3`, `.wav`, `.m4a`) |
+| `webhookUrl` | ✅ | Endpoint URL where completion results will be posted |
 
-**Response `202`:** `{ "jobId": "...", "status": "processing" }`
-
-**Webhook payload on complete:**
-```json
-{
-  "jobId": "...", "projectId": "...", "status": "completed",
-  "results": { "fr-FR": "https://.../video-fr.mp4" }
-}
-```
+**Response `202 Accepted`:** `{ "jobId": "...", "status": "processing" }`
 
 ---
 
@@ -157,7 +182,7 @@ Merge pre-dubbed audio onto a video. Results sent to your webhook.
 
 ---
 
-## Kokoro Voices
+## Kokoro Voices (`ttsEngine: "kokoro"`)
 
 Pass voice IDs in the `voices` field: `{ "en": "am_adam", "es": "ef_dora" }`
 
@@ -165,7 +190,7 @@ Pass voice IDs in the `voices` field: `{ "en": "am_adam", "es": "ef_dora" }`
 
 | Voice ID | Description |
 |---|---|
-| `af_heart` | Female — Grade A - default |
+| `af_heart` | Female — Grade A (Default) |
 | `af_bella` | Female — Grade A |
 | `af_nicole` | Female — Grade A- |
 | `af_aoede` | Female — Grade A- |
@@ -174,7 +199,7 @@ Pass voice IDs in the `voices` field: `{ "en": "am_adam", "es": "ef_dora" }`
 | `bf_emma` | UK Female — Grade B+ |
 | `bm_george` | UK Male — Grade B+ |
 
-**Other Languages** (one voice each, used by default)
+**Other Languages** (Default graded voice per language)
 
 | Language | Voice ID |
 |---|---|
@@ -188,25 +213,36 @@ Pass voice IDs in the `voices` field: `{ "en": "am_adam", "es": "ef_dora" }`
 
 ---
 
-## Fish Audio Voices
+## Fish Audio Voices (`ttsEngine: "fish"`)
 
-Pass in `voices` field: `{ "es": "1", "fr": "2" }`
+Pass voice IDs in `voices` field: `{ "fr": "2", "es": "1" }`
 
-| Value | Resolves to |
+| Value | Description |
 |---|---|
-| `"1"` / `"female"` | Female voice for that language |
-| `"2"` / `"male"` | Male voice for that language |
-| 32-char hex string | Your custom cloned Fish Audio voice |
+| `"1"` / `"female"` | Female default voice for target language |
+| `"2"` / `"male"` | Male default voice for target language |
+| `32-char hex string` | Custom cloned Fish Audio voice ID |
 
-**Built-in voice IDs (for reference):**
+---
 
-| Language | Female | Male |
-|---|---|---|
-| `en` | `b545c585f631496c914815291da4e893` | `d8a1340984ee4b63ad1ffae27a6a4339` |
-| `es` | `87603dd57ecb417e8c57fd4362af1cee` | `8d2c17a9b26d4d83888ea67a1ee565b2` |
-| `fr` | `656cde69eff3483b933b8d2ffd388c3c` | `3bce5f0710f949888abe982ded1ef731` |
-| `it` | `656cde69eff3483b933b8d2ffd388c3c` | `3bce5f0710f949888abe982ded1ef731` |
-| `pt` | `302d4d27c9344460a815ee46efdd5cf0` | `0ba1afd27db44eb2b4cb27fd331b93aa` |
-| `ja` | `c13253b3e1fa4580b1295ef7c7e96c41` | `45c5d3723c9c42f598e4776dcfd5f02d` |
-| `tl` | `701712d9d2194ebd8c0ea782907ceb38` | `1c25b1a3f43546a5bc4e1568e1ed597e` |
-| `hi` | `6904263ba877477fa4ac4a58830126a1` | `b422631422de4186855e9bb1d285a5bd` |
+## Frontend Integration Example (Next.js / Fetch)
+
+```javascript
+const response = await fetch('https://dubbing-merge-server.jollygrass-a22ba7ee.northeurope.azurecontainerapps.io/api/dubbing/async/single', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-dubbing-secret': process.env.CUSTOM_DUBBING_SECRET // <--- Required Secret Header
+  },
+  body: JSON.stringify({
+    videoUrl: 'https://youtube.com/shorts/...',
+    sourceLanguage: 'en',
+    targetLanguages: ['fr'],
+    ttsEngine: 'fish',
+    voices: { 'fr': '2' }
+  })
+});
+
+const data = await response.json();
+console.log('Job queued:', data.jobId);
+```
